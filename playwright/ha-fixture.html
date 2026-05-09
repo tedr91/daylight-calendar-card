@@ -3,7 +3,33 @@
 <head>
   <meta charset="UTF-8" />
   <title>HA Fixture</title>
-  <style>body{margin:0;padding:16px;background:#fff;font-family:Arial,sans-serif;}</style>
+  <style>
+    :root {
+      --primary-color: #2563eb;
+      --accent-color: #1d4ed8;
+      --card-background-color: #ffffff;
+      --ha-card-background: #ffffff;
+      --primary-text-color: #111827;
+      --secondary-text-color: #4b5563;
+      --divider-color: #d1d5db;
+    }
+    body {
+      margin: 0;
+      padding: 16px;
+      background: #f3f4f6;
+      font-family: Arial, sans-serif;
+    }
+    body.dark-fixture {
+      --primary-color: #1e40af;
+      --accent-color: #60a5fa;
+      --card-background-color: #111827;
+      --ha-card-background: #111827;
+      --primary-text-color: #f9fafb;
+      --secondary-text-color: #d1d5db;
+      --divider-color: #4b5563;
+      background: #020617;
+    }
+  </style>
 </head>
 <body>
   <div id="app"></div>
@@ -12,6 +38,7 @@
     window.renderCalendarCard = ({ config, events, darkMode = false }) => {
       const app = document.getElementById('app');
       app.innerHTML = '';
+      document.body.classList.toggle('dark-fixture', !!darkMode);
       const el = document.createElement('skylight-calendar-card');
       const hass = {
         language: 'en',
