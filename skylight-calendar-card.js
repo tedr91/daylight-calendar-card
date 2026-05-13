@@ -1001,6 +1001,14 @@ class SkylightCalendarCard extends HTMLElement {
     return 'none';
   }
 
+  normalizePastEventMode(value) {
+    const normalizedValue = String(value ?? '').trim().toLowerCase();
+    if (['none', 'hide', 'muted'].includes(normalizedValue)) {
+      return normalizedValue;
+    }
+    return 'none';
+  }
+
   normalizeEntityStringMap(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return {};
@@ -1214,6 +1222,9 @@ class SkylightCalendarCard extends HTMLElement {
       ? Math.min(23, Math.max(0, configuredWeekEndHour))
       : 23;
     const normalizedEventTitlePrefix = this.normalizeEventTitlePrefixMode(config.event_title_prefix);
+    const normalizedPastEventMode = config.past_event_mode !== undefined && config.past_event_mode !== null && config.past_event_mode !== ''
+      ? this.normalizePastEventMode(config.past_event_mode)
+      : (config.hide_the_past ? 'hide' : 'none');
 
     const rawCombineWidth = Number(config.combine_calendars_width);
     const rawEventBarWidth = Number(config.event_color_bar_width);
@@ -1244,7 +1255,8 @@ class SkylightCalendarCard extends HTMLElement {
       show_week_numbers_month: config.show_week_numbers_month || false, // In month view, show ISO 8601 week numbers on the left side
       show_all_events_month: config.show_all_events_month || false, // In month view, show all events and allow week rows to grow while keeping row minimum height
       show_all_details_month: config.show_all_details_month || false, // In month view, render all events with week-compact styling (also implies show_all_events_month behavior)
-      hide_the_past: config.hide_the_past || false, // Hide events that ended before the current time
+      hide_the_past: config.hide_the_past || false, // Deprecated alias: use past_event_mode: 'hide' instead
+      past_event_mode: normalizedPastEventMode, // Past-ended event handling: none, hide, or muted
       hide_empty_days: config.hide_empty_days || false, // Agenda view: hide day rows that do not contain any visible events
       agenda_compact_events: config.agenda_compact_events ?? false, // Agenda view: render title + time on one row with compact spacing
       disable_swipe_controls: config.disable_swipe_controls ?? false, // Disable left/right swipe period navigation
@@ -1318,6 +1330,8 @@ class SkylightCalendarCard extends HTMLElement {
       background_opacity: normalizedBackgroundOpacity, // Re-apply normalization after spread for background opacity values
       background_transparent: normalizedBackgroundOpacity >= 100, // Re-apply legacy alias after spread
       event_title_prefix: normalizedEventTitlePrefix, // Re-apply normalization after spread for event title prefix
+      past_event_mode: normalizedPastEventMode, // Re-apply normalization after spread for past event handling
+      hide_the_past: config.hide_the_past || false, // Re-apply deprecated alias after spread for compatibility
       header_dashboard_path: this.normalizeDashboardPath(config.header_dashboard_path), // Re-apply normalization for dashboard path
       header_time_sensor: typeof config.header_time_sensor === 'string' && config.header_time_sensor.trim()
         ? config.header_time_sensor.trim()
@@ -7393,18 +7407,22 @@ class SkylightCalendarCard extends HTMLElement {
     const borderStyle = shouldShowBorderAccent
       ? `border-left: 4px solid ${primaryColor};`
       : 'border-left: none;';
+    const mutedStyle = this._config?.past_event_mode === 'muted' && this.isPastEvent(event)
+      ? 'opacity: 0.55; filter: grayscale(70%) saturate(45%);'
+      : '';
+    const finalizeStyle = (style) => `${style} ${mutedStyle}`.trim();
 
     const eventColorMode = this.normalizeEventColorMode(this._config?.event_color_mode);
     if (visibleColors.length <= 1) {
       if (eventColorMode === 'left-neutral') {
         const barWidth = this.getEventColorBarWidth();
-        return `--combine-left-offset: ${barWidth}px; background-color: ${this.getEventNeutralBackgroundColor()}; background-image: linear-gradient(to right, ${primaryColor} 0 ${barWidth}px, transparent ${barWidth}px); background-size: ${barWidth}px 100%; background-position: left top; background-repeat: no-repeat; background-clip: padding-box; ${borderStyle}`;
+        return finalizeStyle(`--combine-left-offset: ${barWidth}px; background-color: ${this.getEventNeutralBackgroundColor()}; background-image: linear-gradient(to right, ${primaryColor} 0 ${barWidth}px, transparent ${barWidth}px); background-size: ${barWidth}px 100%; background-position: left top; background-repeat: no-repeat; background-clip: padding-box; ${borderStyle}`);
       }
       if (eventColorMode === 'left-tint') {
         const barWidth = this.getEventColorBarWidth();
-        return `--combine-left-offset: ${barWidth}px; background-color: ${this.getEventTintBackgroundColor(primaryColor)}; background-image: linear-gradient(to right, ${primaryColor} 0 ${barWidth}px, transparent ${barWidth}px); background-size: ${barWidth}px 100%; background-position: left top; background-repeat: no-repeat; background-clip: padding-box; ${borderStyle}`;
+        return finalizeStyle(`--combine-left-offset: ${barWidth}px; background-color: ${this.getEventTintBackgroundColor(primaryColor)}; background-image: linear-gradient(to right, ${primaryColor} 0 ${barWidth}px, transparent ${barWidth}px); background-size: ${barWidth}px 100%; background-position: left top; background-repeat: no-repeat; background-clip: padding-box; ${borderStyle}`);
       }
-      return `background-color: ${primaryColor}; background-image: none; background-clip: padding-box; ${borderStyle}`;
+      return finalizeStyle(`background-color: ${primaryColor}; background-image: none; background-clip: padding-box; ${borderStyle}`);
     }
 
     const combineStyle = this.normalizeCombineStyle(this._config?.combine_style);
@@ -7419,17 +7437,17 @@ class SkylightCalendarCard extends HTMLElement {
     if (combineStyle === 'bars') {
       const barsGradient = indicatorColors.length > 0 ? this.createVerticalBarsGradient(indicatorColors) : 'none';
       const leftOffset = indicatorColors.length > 0 ? `--combine-left-offset: ${indicatorWidth}px;` : '--combine-left-offset: 0px;';
-      return `${leftOffset} background-color: ${backgroundColor}; background-image: ${barsGradient}; background-size: ${indicatorWidth}px 100%; background-position: left top; background-repeat: no-repeat; background-clip: padding-box; ${shouldShowCornerBadges ? '--combined-corner-bubbles: 1;' : ''} ${borderStyle}`;
+      return finalizeStyle(`${leftOffset} background-color: ${backgroundColor}; background-image: ${barsGradient}; background-size: ${indicatorWidth}px 100%; background-position: left top; background-repeat: no-repeat; background-clip: padding-box; ${shouldShowCornerBadges ? '--combined-corner-bubbles: 1;' : ''} ${borderStyle}`);
     }
 
     if (combineStyle === 'dots') {
       const dots = indicatorColors.length > 0 ? this.createDotsDecoration(indicatorColors, indicatorWidth) : 'none';
       const leftOffset = indicatorColors.length > 0 ? `--combine-left-offset: ${indicatorWidth}px;` : '--combine-left-offset: 0px;';
-      return `${leftOffset} background-color: ${backgroundColor}; background-image: ${dots}; background-repeat: no-repeat; background-clip: padding-box; ${shouldShowCornerBadges ? '--combined-corner-bubbles: 1;' : ''} ${borderStyle}`;
+      return finalizeStyle(`${leftOffset} background-color: ${backgroundColor}; background-image: ${dots}; background-repeat: no-repeat; background-clip: padding-box; ${shouldShowCornerBadges ? '--combined-corner-bubbles: 1;' : ''} ${borderStyle}`);
     }
 
     const stripeGradient = this.createZebraStripeGradient(visibleColors);
-    return `--combine-left-offset: 0px; background-color: ${backgroundColor}; background-image: ${stripeGradient}; background-clip: padding-box; ${shouldShowCornerBadges ? '--combined-corner-bubbles: 1;' : ''} ${borderStyle}`;
+    return finalizeStyle(`--combine-left-offset: 0px; background-color: ${backgroundColor}; background-image: ${stripeGradient}; background-clip: padding-box; ${shouldShowCornerBadges ? '--combined-corner-bubbles: 1;' : ''} ${borderStyle}`);
   }
 
   getEventDateTimeInfo(event) {
@@ -7548,15 +7566,18 @@ class SkylightCalendarCard extends HTMLElement {
         return false;
       }
 
-      if (this._config.hide_the_past) {
-        const { eventEnd } = this.getEventDateTimeInfo(event);
-        if (eventEnd < new Date()) {
-          return false;
-        }
+      if (this._config.past_event_mode === 'hide' && this.isPastEvent(event)) {
+        return false;
       }
 
       return this.getEventDaySegment(event, date) !== null;
     });
+  }
+
+  isPastEvent(event) {
+    if (!event) return false;
+    const { eventEnd } = this.getEventDateTimeInfo(event);
+    return eventEnd < new Date();
   }
 
   isCurrentDayInViewableRange() {
@@ -7566,7 +7587,7 @@ class SkylightCalendarCard extends HTMLElement {
   }
 
   shouldDisablePreviousNavigation() {
-    return !!this._config.hide_the_past && this.isCurrentDayInViewableRange();
+    return this._config.past_event_mode === 'hide' && this.isCurrentDayInViewableRange();
   }
 
   canNavigateToPreviousPeriod() {
@@ -10485,6 +10506,7 @@ class SkylightCalendarCard extends HTMLElement {
       week_end_hour: 23,
       lock_schedule_hours: false,
       hide_the_past: false,
+      past_event_mode: 'none',
       disable_swipe_controls: false,
       show_all_events_month: false,
       show_all_details_month: false,
@@ -10606,11 +10628,15 @@ class SkylightCalendarCardEditor extends HTMLElement {
       : config.default_view === 'schedule'
         ? 'week-standard'
         : config.default_view;
+    const normalizedPastEventMode = config.past_event_mode !== undefined && config.past_event_mode !== null && config.past_event_mode !== ''
+      ? SkylightCalendarCard.prototype.normalizePastEventMode(config.past_event_mode)
+      : (config.hide_the_past ? 'hide' : SkylightCalendarCard.getStubConfig().past_event_mode);
 
     this._config = {
       ...SkylightCalendarCard.getStubConfig(),
       ...config,
       default_view: normalizedDefaultView || (SkylightCalendarCard.getStubConfig().default_view || 'month'),
+      past_event_mode: normalizedPastEventMode,
       color_scheme: SkylightCalendarCard.prototype.normalizeDefaultDarkMode(config.color_scheme),
       header_dashboard_path: SkylightCalendarCard.prototype.normalizeDashboardPath(config.header_dashboard_path)
     };
@@ -10699,6 +10725,7 @@ class SkylightCalendarCardEditor extends HTMLElement {
       week_end_hour: 23,
       lock_schedule_hours: false,
       hide_the_past: false,
+      past_event_mode: 'none',
       height_scale: 1,
       event_font_size: 11,
       event_time_font_size: 9,
@@ -11143,7 +11170,13 @@ class SkylightCalendarCardEditor extends HTMLElement {
       </div>
       <div class="boolean-list">
         <label><input type="checkbox" data-field="lock_schedule_hours" ${this._config.lock_schedule_hours ? 'checked' : ''}> Schedule view: lock week start/end hours</label>
-        <label><input type="checkbox" data-field="hide_the_past" ${this._config.hide_the_past ? 'checked' : ''}> Hide events in the past</label>
+        <label class="field-inline">Past-ended events
+          <select data-field="past_event_mode">
+            <option value="none" ${this._config.past_event_mode === 'none' ? 'selected' : ''}>Show normally</option>
+            <option value="hide" ${this._config.past_event_mode === 'hide' ? 'selected' : ''}>Hide</option>
+            <option value="muted" ${this._config.past_event_mode === 'muted' ? 'selected' : ''}>Mute</option>
+          </select>
+        </label>
         <label><input type="checkbox" data-field="hide_empty_days" ${this._config.hide_empty_days ? 'checked' : ''}> Agenda view: hide empty days</label>
         <label><input type="checkbox" data-field="agenda_compact_events" ${this._config.agenda_compact_events ? 'checked' : ''}> Agenda view: compact events</label>
         <label><input type="checkbox" data-field="disable_swipe_controls" ${this._config.disable_swipe_controls ? 'checked' : ''}> Disable swipe period controls</label>
@@ -12205,7 +12238,7 @@ class SkylightCalendarCardEditor extends HTMLElement {
       nextConfig[field] = this.parseList(event.target.value);
     } else {
       nextConfig[field] = event.target.value;
-      if (field === 'event_color_mode') {
+      if (field === 'event_color_mode' || field === 'past_event_mode') {
         this._config = nextConfig;
         this.render();
         this.dispatchEvent(

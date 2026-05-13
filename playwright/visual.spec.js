@@ -106,6 +106,30 @@ const cases = [
     }
   },
   { name: 'event-left-neutral-week', config: { default_view: 'week', event_color_mode: 'left-neutral', event_neutral_background: '#F8F3E9', event_color_bar_width: 18, colors: defaultColors }, darkMode: false, events: baseEvents, viewLabel: 'Week' },
+  {
+    name: 'past-event-mode-hide',
+    config: { default_view: 'week', past_event_mode: 'hide', colors: defaultColors },
+    darkMode: false,
+    events: baseEvents,
+    viewLabel: 'Week',
+    assert: async (card) => {
+      await expect(card.locator('.week-compact-event').filter({ hasText: 'Coffee' })).toHaveCount(0);
+      await expect(card.locator('.week-compact-event').filter({ hasText: 'Standup' })).toHaveCount(1);
+    }
+  },
+  {
+    name: 'past-event-mode-muted',
+    config: { default_view: 'week', past_event_mode: 'muted', colors: defaultColors },
+    darkMode: false,
+    events: baseEvents,
+    viewLabel: 'Week',
+    assert: async (card) => {
+      const pastEvent = card.locator('.week-compact-event').filter({ hasText: 'Coffee' });
+      await expect(pastEvent).toHaveCount(1);
+      await expect(pastEvent).toHaveCSS('opacity', '0.55');
+      await expect(pastEvent).toHaveAttribute('style', /filter: grayscale\(70%\) saturate\(45%\)/);
+    }
+  },
   { name: 'event-left-tint-schedule', config: { default_view: 'schedule', event_color_mode: 'left-tint', event_tint_opacity: 100, event_color_bar_width: 18, colors: defaultColors }, darkMode: false, events: baseEvents, viewLabel: 'Schedule' },
   { name: 'virtual-calendars', config: { default_view: 'schedule', virtual_calendars: [{ name: 'home+work', icon: 'mdi:calendar', entities: ['calendar.family', 'calendar.work'] }] }, darkMode: false, events: baseEvents, viewLabel: 'Schedule' },
   {

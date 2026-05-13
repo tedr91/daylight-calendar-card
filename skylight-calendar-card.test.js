@@ -108,7 +108,7 @@ test('getStubConfig includes key configuration defaults', () => {
     'lock_schedule_hours', 'show_all_events_month', 'show_all_details_month',
     'hide_empty_days', 'agenda_compact_events', 'compact_width',
     'show_current_time_bar', 'show_event_location', 'use_short_location',
-    'event_calendar_friendly_name', 'event_title_prefix', 'event_color_mode',
+    'event_calendar_friendly_name', 'event_title_prefix', 'past_event_mode', 'event_color_mode',
     'event_neutral_background', 'event_tint_opacity', 'event_color_bar_width', 'combine_style',
     'combine_background', 'hide_calendars', 'hide_year', 'hide_controls',
     'hide_navigation_buttons', 'hide_add_event_button', 'hide_view_selector',
@@ -234,6 +234,62 @@ test('setConfig normalizes fallback values and aliases', () => {
   assert.equal(card._config.header_background_opacity, 100);
   assert.equal(card._config.event_title_prefix, 'none');
   assert.equal(card._config.color_scheme, 'auto');
+});
+
+
+function makeRelativeEvent(summary, startOffsetMs, endOffsetMs) {
+  const now = Date.now();
+  return {
+    entityId: 'calendar.family',
+    color: '#3366ff',
+    summary,
+    start: { dateTime: new Date(now + startOffsetMs).toISOString() },
+    end: { dateTime: new Date(now + endOffsetMs).toISOString() }
+  };
+}
+
+function eventDate(event) {
+  return new Date(event.start.dateTime);
+}
+
+test('legacy hide_the_past true maps to hiding ended events', () => {
+  const card = makeCard({ entities: ['calendar.family'], hide_the_past: true });
+  const pastEvent = makeRelativeEvent('Past', -7200000, -3600000);
+  card._events = [pastEvent];
+
+  assert.equal(card._config.past_event_mode, 'hide');
+  assert.equal(card.isPastEvent(pastEvent), true);
+  assert.deepEqual(card.getEventsForDay(eventDate(pastEvent)), []);
+});
+
+test('past_event_mode none leaves ended events visible', () => {
+  const card = makeCard({ entities: ['calendar.family'], past_event_mode: 'none', hide_the_past: true });
+  const pastEvent = makeRelativeEvent('Past visible', -7200000, -3600000);
+  card._events = [pastEvent];
+
+  assert.equal(card._config.past_event_mode, 'none');
+  assert.deepEqual(card.getEventsForDay(eventDate(pastEvent)), [pastEvent]);
+  assert.doesNotMatch(card.getEventStyle(pastEvent), /opacity: 0\.55/);
+});
+
+test('past_event_mode hide hides ended events', () => {
+  const card = makeCard({ entities: ['calendar.family'], past_event_mode: 'hide' });
+  const pastEvent = makeRelativeEvent('Past hidden', -7200000, -3600000);
+  card._events = [pastEvent];
+
+  assert.equal(card._config.past_event_mode, 'hide');
+  assert.deepEqual(card.getEventsForDay(eventDate(pastEvent)), []);
+});
+
+test('past_event_mode muted leaves ended events visible and applies muted style', () => {
+  const card = makeCard({ entities: ['calendar.family'], past_event_mode: 'muted' });
+  const pastEvent = makeRelativeEvent('Past muted', -7200000, -3600000);
+  card._events = [pastEvent];
+
+  assert.equal(card._config.past_event_mode, 'muted');
+  assert.deepEqual(card.getEventsForDay(eventDate(pastEvent)), [pastEvent]);
+  assert.match(card.getEventStyle(pastEvent), /opacity: 0\.55/);
+  assert.match(card.getEventStyle(pastEvent), /filter: grayscale\(70%\) saturate\(45%\)/);
 });
 
 
@@ -404,12 +460,17 @@ test('editor renders key controls and updates config on change', () => {
   const Editor = customElements.get('skylight-calendar-card-editor');
   const editor = new Editor();
   editor._hass = { states: { 'calendar.family': { entity_id: 'calendar.family', attributes: { friendly_name: 'Family' } } } };
-  editor.setConfig({ entities: ['calendar.family'], show_event_location: false });
+  editor.setConfig({ entities: ['calendar.family'], show_event_location: false, hide_the_past: true });
   assert.doesNotThrow(() => editor.render());
-  editor._config = { entities: ['calendar.family'], show_event_location: false };
+  assert.equal(editor._config.past_event_mode, 'hide');
+  assert.match(editor.innerHTML, /data-field="past_event_mode"/);
+  assert.match(editor.innerHTML, /<option value="hide" selected>Hide<\/option>/);
+  editor._config = { entities: ['calendar.family'], show_event_location: false, past_event_mode: 'none' };
   editor._fireConfigChanged = () => {};
   editor.handleChange({ target: { dataset: { field: 'show_event_location' }, type: 'checkbox', checked: true } });
   assert.equal(editor._config.show_event_location, true);
+  editor.handleChange({ target: { dataset: { field: 'past_event_mode' }, value: 'muted' } });
+  assert.equal(editor._config.past_event_mode, 'muted');
 });
 
 
