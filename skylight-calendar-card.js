@@ -10731,8 +10731,8 @@ class SkylightCalendarCard extends HTMLElement {
     const allowedSimpleTags = 'b|strong|i|em|u|s|br|p|ul|ol|li|blockquote|code|pre|h[1-6]';
 
     const renderAnchor = (attrs, content = '') => {
-      const hrefMatch = attrs.match(/href\s*=\s*(?:&quot;([^&]*)&quot;|&#39;([^&]*)&(?:#39|apos);|([^\s&]+))/i);
-      const href = hrefMatch ? this.decodeHtmlEntities(hrefMatch[1] || hrefMatch[2] || hrefMatch[3] || '') : '';
+      const hrefMatch = attrs.match(/href\s*=\s*(?:&quot;([^&]*)&quot;|&#39;([^&]*)&(?:#39|apos);|"([^"]*)"|'([^']*)'|([^\s&"']+))/i);
+      const href = hrefMatch ? this.decodeHtmlEntities(hrefMatch[1] || hrefMatch[2] || hrefMatch[3] || hrefMatch[4] || hrefMatch[5] || '') : '';
       const safeUrl = this.getSafeDescriptionUrl(href);
       if (!safeUrl) return content;
       return `<a href="${this.escapeHtmlAttribute(safeUrl)}" target="_blank" rel="noopener noreferrer">${content}</a>`;
