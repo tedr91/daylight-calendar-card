@@ -380,6 +380,28 @@ test('calendar render includes header controls and modal container', () => {
 });
 
 
+
+test('renderEventDescription supports markdown formatting with safe links', () => {
+  const card = makeCard();
+  const html = card.renderEventDescription('# Details\n\nBring **snacks** and [agenda](https://example.com/path?a=1&b=2).\n- RSVP\n- Arrive `early`');
+
+  assert.match(html, /<h1>Details<\/h1>/);
+  assert.match(html, /<strong>snacks<\/strong>/);
+  assert.match(html, /<a href="https:\/\/example\.com\/path\?a=1&amp;b=2" target="_blank" rel="noopener noreferrer">agenda<\/a>/);
+  assert.match(html, /<ul><li>RSVP<\/li><li>Arrive <code>early<\/code><\/li><\/ul>/);
+});
+
+test('renderEventDescription allows basic HTML but strips scripts and unsafe links', () => {
+  const card = makeCard();
+  const html = card.renderEventDescription('<p><b>Bring plates</b></p><script>alert(1)</script><a href="javascript:alert(1)">bad</a><a href="/local/info">good</a>');
+
+  assert.match(html, /<p><b>Bring plates<\/b><\/p>/);
+  assert.doesNotMatch(html, /<script|alert\(1\)|javascript:/);
+  assert.match(html, />bad/);
+  assert.doesNotMatch(html, /bad<\/a>/);
+  assert.match(html, /<a href="\/local\/info" target="_blank" rel="noopener noreferrer">good<\/a>/);
+});
+
 test('weather renders Home Assistant mdi icons instead of emoji glyphs', () => {
   const card = makeCard({
     entities: ['calendar.family'],

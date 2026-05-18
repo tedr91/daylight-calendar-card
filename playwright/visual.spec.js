@@ -71,6 +71,27 @@ const hostileEvents = {
   ]
 };
 
+const richDescriptionEvents = {
+  'calendar.family': [
+    {
+      summary: 'Markdown Description Demo',
+      start: '2026-03-15T10:30:00Z',
+      end: '2026-03-15T11:00:00Z',
+      location: 'Kitchen',
+      description: '## Markdown Details\n\nBring **snacks** and [menu](https://example.com/menu).\n- Chips\n- Drinks\n\nUse `door code`.'
+    }
+  ],
+  'calendar.work': [
+    {
+      summary: 'HTML Description Demo',
+      start: '2026-03-15T12:00:00Z',
+      end: '2026-03-15T12:30:00Z',
+      location: 'Conference Room',
+      description: '<h3>HTML Details</h3><p>Please bring <em>printed notes</em>.</p><blockquote>Setup starts early.</blockquote><p><a href="/local/rich-info">More info</a></p>'
+    }
+  ]
+};
+
 const defaultColors = { 'calendar.family': '#ff5f66', 'calendar.work': '#14c8bd' };
 
 const cases = [
@@ -209,6 +230,43 @@ test.beforeEach(async ({ page }) => {
     }
     window.Date = MockDate;
   }, FIXED_NOW);
+});
+
+test('visual: event modal renders rich markdown and HTML descriptions', async ({ page }) => {
+  const fixtureUrl = `file://${path.join(process.cwd(), 'playwright', 'ha-fixture.html')}`;
+  await page.goto(fixtureUrl);
+  await page.evaluate((params) => window.renderCalendarCard(params), {
+    config: { entities: ['calendar.family', 'calendar.work'], title: 'Rich Description Calendar', default_view: 'agenda' },
+    events: richDescriptionEvents,
+    darkMode: false
+  });
+
+  const card = page.locator('skylight-calendar-card');
+  await expect(card).toBeVisible();
+
+  await card.locator('.agenda-event').filter({ hasText: 'Markdown Description Demo' }).click();
+  const modal = card.locator('#event-modal');
+  await expect(modal).toHaveClass(/show/);
+
+  const markdownDescription = modal.locator('.event-description-content');
+  await expect(markdownDescription.locator('h2')).toHaveText('Markdown Details');
+  await expect(markdownDescription.locator('strong')).toHaveText('snacks');
+  await expect(markdownDescription.locator('a')).toHaveAttribute('href', 'https://example.com/menu');
+  await expect(markdownDescription.locator('ul li')).toHaveText(['Chips', 'Drinks']);
+  await expect(markdownDescription.locator('code')).toHaveText('door code');
+  await expect(markdownDescription).toHaveCSS('overflow-wrap', 'anywhere');
+
+  await modal.locator('.modal-close').click();
+  await expect(modal).not.toHaveClass(/show/);
+
+  await card.locator('.agenda-event').filter({ hasText: 'HTML Description Demo' }).click();
+  await expect(modal).toHaveClass(/show/);
+
+  const htmlDescription = modal.locator('.event-description-content');
+  await expect(htmlDescription.locator('h3')).toHaveText('HTML Details');
+  await expect(htmlDescription.locator('em')).toHaveText('printed notes');
+  await expect(htmlDescription.locator('blockquote')).toHaveText('Setup starts early.');
+  await expect(htmlDescription.locator('a')).toHaveAttribute('href', '/local/rich-info');
 });
 
 for (const scenario of cases) {
