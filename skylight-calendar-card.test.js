@@ -414,6 +414,15 @@ test('renderEventDescription restores HTML links escaped with literal quoted hre
   assert.match(html, /<a href="\/local\/rich-info" target="_blank" rel="noopener noreferrer">More info<\/a>/);
 });
 
+test('renderEventDescription keeps common HTML wrappers from rendering as raw text', () => {
+  const card = makeCard();
+  const html = card.renderEventDescription('<div>Line 1</div><div>Line 2</div><table><tr><th>When</th><td>Noon</td></tr></table>');
+
+  assert.match(html, /<div>Line 1<\/div><div>Line 2<\/div>/);
+  assert.match(html, /<table><tr><th>When<\/th><td>Noon<\/td><\/tr><\/table>/);
+  assert.doesNotMatch(html, /&lt;\/?(?:div|table|tr|th|td)\b/i);
+});
+
 test('weather renders Home Assistant mdi icons instead of emoji glyphs', () => {
   const card = makeCard({
     entities: ['calendar.family'],

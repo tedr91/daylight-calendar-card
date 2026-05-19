@@ -10728,7 +10728,7 @@ class SkylightCalendarCard extends HTMLElement {
   }
 
   restoreAllowedDescriptionTags(html) {
-    const allowedSimpleTags = 'b|strong|i|em|u|s|br|p|ul|ol|li|blockquote|code|pre|h[1-6]';
+    const allowedSimpleTags = 'b|strong|i|em|u|s|br|p|div|ul|ol|li|blockquote|code|pre|h[1-6]|table|thead|tbody|tfoot|tr|td|th';
 
     const renderAnchor = (attrs, content = '') => {
       const hrefMatch = attrs.match(/href\s*=\s*(?:&quot;([^&]*)&quot;|&#39;([^&]*)&(?:#39|apos);|"([^"]*)"|'([^']*)'|([^\s&"']+))/i);
