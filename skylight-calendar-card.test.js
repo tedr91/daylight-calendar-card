@@ -967,3 +967,60 @@ test('editor color swatches show effective calendar and event font colors', () =
   assert.equal(editor.getColorValue('event_font_colors', 'calendar.work'), '#000000');
   assert.equal(editor.getColorValue('event_font_colors', 'calendar.school'), '#123456');
 });
+
+test('hide_times_for_calendars applies across agenda, week-standard, week-compact, and month renderers', () => {
+  const hiddenEntityId = 'calendar.hidden';
+  const visibleEntityId = 'calendar.visible';
+  const baseDate = new Date('2026-05-14T00:00:00Z');
+
+  const hiddenEvent = {
+    entityId: hiddenEntityId,
+    color: '#3366ff',
+    summary: 'Hidden time event',
+    start: { dateTime: '2026-05-14T09:00:00Z' },
+    end: { dateTime: '2026-05-14T10:00:00Z' }
+  };
+  const visibleEvent = {
+    ...hiddenEvent,
+    entityId: visibleEntityId,
+    summary: 'Visible time event'
+  };
+
+  const card = makeCard({
+    entities: [hiddenEntityId, visibleEntityId],
+    hide_times_for_calendars: [hiddenEntityId]
+  });
+  card._hass = { states: {}, locale: { language: 'en' }, language: 'en', themes: { darkMode: false } };
+
+  const hiddenWeekCompact = card.renderWeekCompactEvent(hiddenEvent, baseDate);
+  const visibleWeekCompact = card.renderWeekCompactEvent(visibleEvent, baseDate);
+  assert.doesNotMatch(hiddenWeekCompact, /week-compact-event-time/);
+  assert.match(visibleWeekCompact, /week-compact-event-time/);
+
+  const hiddenMonthStandard = card.renderEvent(hiddenEvent, baseDate);
+  const visibleMonthStandard = card.renderEvent(visibleEvent, baseDate);
+  assert.doesNotMatch(hiddenMonthStandard, /class="event-time"/);
+  assert.match(visibleMonthStandard, /class="event-time"/);
+
+  card._config.show_all_details_month = true;
+  const hiddenMonthWeekCompact = card.renderMonthDayEvent(hiddenEvent, baseDate);
+  const visibleMonthWeekCompact = card.renderMonthDayEvent(visibleEvent, baseDate);
+  assert.doesNotMatch(hiddenMonthWeekCompact, /week-compact-event-time/);
+  assert.match(visibleMonthWeekCompact, /week-compact-event-time/);
+
+  const hiddenWeekStandard = card.renderTimedEventsForDay([hiddenEvent], baseDate, 0, 23, 40);
+  const visibleWeekStandard = card.renderTimedEventsForDay([visibleEvent], baseDate, 0, 23, 40);
+  assert.doesNotMatch(hiddenWeekStandard, /week-standard-event-time/);
+  assert.match(visibleWeekStandard, /week-standard-event-time/);
+
+  card._viewMode = 'agenda';
+  card._events = [hiddenEvent, visibleEvent];
+  card.getAgendaDays = () => [baseDate];
+  card.getAgendaEventMinHeight = () => '68px';
+  card.getCompactMaxHeight = () => null;
+  card.getCompactContainerStyle = () => '';
+  card.getEventsForDay = () => [hiddenEvent, visibleEvent];
+
+  const agendaHtml = card.renderAgenda();
+  assert.equal((agendaHtml.match(/agenda-event-time/g) || []).length, 1);
+});
