@@ -333,4 +333,8 @@ test('regression: month compact-height view selector stays clickable without dev
 
   await selector.selectOption('month');
   await expect(card.locator('.calendar-grid')).toBeVisible();
+
+  await page.setViewportSize({ width: 1280, height: 760 });
+  await expect(card.locator('.calendar-grid')).toBeVisible();
+  await expect(selector).toBeEnabled();
 });
