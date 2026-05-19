@@ -310,3 +310,31 @@ for (const scenario of cases) {
     });
   });
 }
+
+test('regression: month compact-height view selector stays clickable without devtools', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+
+  const fixtureUrl = `file://${path.join(process.cwd(), 'playwright', 'ha-fixture.html')}`;
+  await page.goto(fixtureUrl);
+  await page.evaluate((params) => window.renderCalendarCard(params), {
+    config: { entities: ['calendar.family', 'calendar.work'], title: 'Regression Calendar', default_view: 'month', compact_height: true },
+    events: baseEvents,
+    darkMode: false
+  });
+
+  const card = page.locator('skylight-calendar-card');
+  await expect(card).toContainText('Month');
+
+  const selector = card.locator('#view-mode-select');
+  await expect(selector).toBeVisible();
+  await expect(selector).toBeEnabled();
+  await selector.selectOption('agenda');
+  await expect(card.locator('.agenda-container')).toBeVisible();
+
+  await selector.selectOption('month');
+  await expect(card.locator('.calendar-grid')).toBeVisible();
+
+  await page.setViewportSize({ width: 1280, height: 760 });
+  await expect(card.locator('.calendar-grid')).toBeVisible();
+  await expect(selector).toBeEnabled();
+});

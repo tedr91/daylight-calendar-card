@@ -907,13 +907,24 @@ class SkylightCalendarCard extends HTMLElement {
     this._weatherForecastRefreshInFlight = false;
     this._weatherForecastRefreshRetryAtByEntity = new Map();
     this._modalVisibilityObserver = null;
+    this._monthMeasureRaf = null;
+    this._monthMeasureRenderRaf = null;
+    this._monthGridResizeObserver = null;
+    this._monthCompactMeasurementDirty = true;
+    this._lastCompactMonthViewportHeight = null;
     this._handleViewportResize = () => {
       if (this.isEventManagementDialogOpen()) {
         return;
       }
 
-      if (this._config.compact_height && (this._viewMode === 'week-standard' || this._viewMode === 'agenda' || (this._viewMode === 'month' && !this.shouldShowAllEventsInMonth()))) {
+      if (this._config.compact_height && (this._viewMode === 'week-standard' || this._viewMode === 'agenda')) {
         this.render();
+        return;
+      }
+
+      if (this._viewMode === 'month' && this._config.compact_height && !this.shouldShowAllEventsInMonth()) {
+        this._monthCompactMeasurementDirty = true;
+        this.scheduleMonthCompactTopMeasurement();
         return;
       }
 
@@ -2668,6 +2679,11 @@ class SkylightCalendarCard extends HTMLElement {
   disconnectedCallback() {
     window.removeEventListener('resize', this._handleViewportResize);
     window.visualViewport?.removeEventListener('resize', this._handleViewportResize);
+    this.cancelMonthCompactMeasurement();
+    if (this._monthGridResizeObserver) {
+      this._monthGridResizeObserver.disconnect();
+      this._monthGridResizeObserver = null;
+    }
     this.detachSystemThemeListener();
     this.teardownWeatherForecastSubscription();
     if (this._modalVisibilityObserver) {
@@ -2755,6 +2771,52 @@ class SkylightCalendarCard extends HTMLElement {
   }
 
 
+
+  cancelMonthCompactMeasurement() {
+    if (this._monthMeasureRaf !== null) {
+      window.cancelAnimationFrame(this._monthMeasureRaf);
+      this._monthMeasureRaf = null;
+    }
+
+    if (this._monthMeasureRenderRaf !== null) {
+      window.cancelAnimationFrame(this._monthMeasureRenderRaf);
+      this._monthMeasureRenderRaf = null;
+    }
+  }
+
+  scheduleMonthCompactTopMeasurement(force = false) {
+    if (this._viewMode !== 'month' || !this._config.compact_height || this.shouldShowAllEventsInMonth()) return;
+    if (this.isEventManagementDialogOpen()) return;
+    if (!force && !this._monthCompactMeasurementDirty && this._monthContainerTopInViewport !== null) return;
+    if (this._monthMeasureRaf !== null) return;
+
+    this._monthMeasureRaf = window.requestAnimationFrame(() => {
+      this._monthMeasureRaf = null;
+      this.updateMonthContainerTopInViewportFromDom();
+      this._monthCompactMeasurementDirty = false;
+    });
+  }
+
+  observeMonthGridResize() {
+    if (!this._root || typeof window.ResizeObserver !== 'function') return;
+
+    if (this._monthGridResizeObserver) {
+      this._monthGridResizeObserver.disconnect();
+      this._monthGridResizeObserver = null;
+    }
+
+    if (this._viewMode !== 'month' || !this._config.compact_height || this.shouldShowAllEventsInMonth()) return;
+
+    const container = this._root.querySelector('.calendar-container');
+    if (!container) return;
+
+    this._monthGridResizeObserver = new window.ResizeObserver(() => {
+      this._monthCompactMeasurementDirty = true;
+      this.scheduleMonthCompactTopMeasurement();
+    });
+    this._monthGridResizeObserver.observe(container);
+  }
+
   updateMonthContainerTopInViewportFromDom() {
     if (this._viewMode !== 'month' || !this._config.compact_height || this.shouldShowAllEventsInMonth() || !this._root) return;
     if (this.isEventManagementDialogOpen()) return;
@@ -2763,12 +2825,27 @@ class SkylightCalendarCard extends HTMLElement {
     if (!container) return;
 
     const measuredContainerTop = Math.max(container.getBoundingClientRect().top, 0);
+    const viewportHeight = window.visualViewport?.height || window.innerHeight;
     if (!Number.isFinite(measuredContainerTop)) return;
+    if (!Number.isFinite(viewportHeight)) return;
 
     const containerTopChanged = this._monthContainerTopInViewport === null || Math.abs(this._monthContainerTopInViewport - measuredContainerTop) > 1;
+    const viewportHeightChanged = this._lastCompactMonthViewportHeight === null || Math.abs(this._lastCompactMonthViewportHeight - viewportHeight) > 1;
+
     if (containerTopChanged) {
       this._monthContainerTopInViewport = measuredContainerTop;
-      this.render();
+    }
+    if (viewportHeightChanged) {
+      this._lastCompactMonthViewportHeight = viewportHeight;
+    }
+
+    if (containerTopChanged || viewportHeightChanged) {
+      if (this._monthMeasureRenderRaf === null) {
+        this._monthMeasureRenderRaf = window.requestAnimationFrame(() => {
+          this._monthMeasureRenderRaf = null;
+          this.render();
+        });
+      }
     }
   }
 
@@ -5679,7 +5756,13 @@ class SkylightCalendarCard extends HTMLElement {
     this.updateCompactHeaderWrapState();
     this.updateCalendarBadgesScrollState();
     this.updateWeekStandardFixedOffsetHeightFromDom();
-    this.updateMonthContainerTopInViewportFromDom();
+    this.observeMonthGridResize();
+    if (this._viewMode === 'month' && this._config.compact_height && !this.shouldShowAllEventsInMonth()) {
+      if (this._monthContainerTopInViewport === null) {
+        this._monthCompactMeasurementDirty = true;
+      }
+      this.scheduleMonthCompactTopMeasurement();
+    }
     this.updateAgendaContainerTopInViewportFromDom();
 
     if (shouldRestoreAgendaScrollPosition) {
