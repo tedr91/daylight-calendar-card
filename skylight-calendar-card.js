@@ -4643,6 +4643,91 @@ class SkylightCalendarCard extends HTMLElement {
         flex: 1;
       }
 
+      .modal-row-description {
+        align-items: flex-start;
+      }
+
+      .event-description-content {
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+      }
+
+      .event-description-content > :first-child {
+        margin-top: 0;
+      }
+
+      .event-description-content > :last-child {
+        margin-bottom: 0;
+      }
+
+      .event-description-content p,
+      .event-description-content ul,
+      .event-description-content ol,
+      .event-description-content blockquote,
+      .event-description-content pre {
+        margin: 0 0 10px;
+      }
+
+      .event-description-content ul,
+      .event-description-content ol {
+        padding-left: 20px;
+      }
+
+      .event-description-content li + li {
+        margin-top: 4px;
+      }
+
+      .event-description-content h1,
+      .event-description-content h2,
+      .event-description-content h3,
+      .event-description-content h4,
+      .event-description-content h5,
+      .event-description-content h6 {
+        margin: 0 0 8px;
+        font-weight: 700;
+        line-height: 1.25;
+        color: #111827;
+      }
+
+      .event-description-content h1 { font-size: 20px; }
+      .event-description-content h2 { font-size: 18px; }
+      .event-description-content h3 { font-size: 16px; }
+      .event-description-content h4,
+      .event-description-content h5,
+      .event-description-content h6 { font-size: 14px; }
+
+      .event-description-content blockquote {
+        border-left: 3px solid #d1d5db;
+        color: #4b5563;
+        padding-left: 10px;
+      }
+
+      .event-description-content code {
+        background: #f3f4f6;
+        border-radius: 4px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.9em;
+        padding: 1px 4px;
+      }
+
+      .event-description-content pre {
+        background: #f3f4f6;
+        border-radius: 8px;
+        overflow-x: auto;
+        padding: 10px;
+        white-space: pre-wrap;
+      }
+
+      .event-description-content pre code {
+        background: transparent;
+        padding: 0;
+      }
+
+      .event-description-content a {
+        color: #2563eb;
+        text-decoration: underline;
+      }
+
       #create-event-form,
       #edit-event-form {
         display: flex;
@@ -5237,6 +5322,29 @@ class SkylightCalendarCard extends HTMLElement {
       .calendar-container.dark-mode .modal-value,
       .calendar-container.dark-mode .form-label {
         color: #d6dee8;
+      }
+
+      .calendar-container.dark-mode .event-description-content h1,
+      .calendar-container.dark-mode .event-description-content h2,
+      .calendar-container.dark-mode .event-description-content h3,
+      .calendar-container.dark-mode .event-description-content h4,
+      .calendar-container.dark-mode .event-description-content h5,
+      .calendar-container.dark-mode .event-description-content h6 {
+        color: #f8fafc;
+      }
+
+      .calendar-container.dark-mode .event-description-content blockquote {
+        border-left-color: #64748b;
+        color: #cbd5e1;
+      }
+
+      .calendar-container.dark-mode .event-description-content code,
+      .calendar-container.dark-mode .event-description-content pre {
+        background: #28313d;
+      }
+
+      .calendar-container.dark-mode .event-description-content a {
+        color: #93c5fd;
       }
 
       .calendar-container.dark-mode .form-required {
@@ -9842,9 +9950,9 @@ class SkylightCalendarCard extends HTMLElement {
           </div>
         ` : ''}
         ${event.description ? `
-          <div class="modal-row">
+          <div class="modal-row modal-row-description">
             <div class="modal-label">📝 ${this.t('description')}</div>
-            <div class="modal-value" style="white-space: pre-wrap;">${this.escapeHtml(event.description)}</div>
+            <div class="modal-value event-description-content">${this.renderEventDescription(event.description)}</div>
           </div>
         ` : ''}
         ${event.attendees && event.attendees.length > 0 ? `
@@ -10485,6 +10593,180 @@ class SkylightCalendarCard extends HTMLElement {
 
     const initial = name.charAt(0).toUpperCase();
     return `<div class="calendar-badge-icon${personIconClass}" style="background: ${iconBackground}">${this.escapeHtml(initial)}</div>`;
+  }
+
+  renderEventDescription(description) {
+    const text = String(description ?? '').trim();
+    if (!text) return '';
+
+    return this.containsBlockHtml(text)
+      ? this.sanitizeBasicDescriptionHtml(text)
+      : this.renderMarkdownDescription(text);
+  }
+
+  containsBlockHtml(text) {
+    return /<\/?(?:p|div|ul|ol|li|blockquote|pre|h[1-6]|table|tr|td|th)\b/i.test(String(text ?? ''));
+  }
+
+  renderMarkdownDescription(text) {
+    const lines = String(text ?? '').replace(/\r\n?/g, '\n').split('\n');
+    const htmlBlocks = [];
+    let paragraphLines = [];
+    let listItems = [];
+    let listType = null;
+    let quoteLines = [];
+
+    const flushParagraph = () => {
+      if (paragraphLines.length === 0) return;
+      htmlBlocks.push(`<p>${paragraphLines.map(line => this.renderMarkdownInline(line)).join('<br>')}</p>`);
+      paragraphLines = [];
+    };
+
+    const flushList = () => {
+      if (!listType || listItems.length === 0) return;
+      htmlBlocks.push(`<${listType}>${listItems.map(item => `<li>${this.renderMarkdownInline(item)}</li>`).join('')}</${listType}>`);
+      listItems = [];
+      listType = null;
+    };
+
+    const flushQuote = () => {
+      if (quoteLines.length === 0) return;
+      htmlBlocks.push(`<blockquote>${quoteLines.map(line => this.renderMarkdownInline(line)).join('<br>')}</blockquote>`);
+      quoteLines = [];
+    };
+
+    const flushAll = () => {
+      flushParagraph();
+      flushList();
+      flushQuote();
+    };
+
+    lines.forEach((line) => {
+      if (!line.trim()) {
+        flushAll();
+        return;
+      }
+
+      const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+      if (headingMatch) {
+        flushAll();
+        const level = headingMatch[1].length;
+        htmlBlocks.push(`<h${level}>${this.renderMarkdownInline(headingMatch[2])}</h${level}>`);
+        return;
+      }
+
+      const unorderedMatch = line.match(/^\s*[-*+]\s+(.+)$/);
+      if (unorderedMatch) {
+        flushParagraph();
+        flushQuote();
+        if (listType && listType !== 'ul') flushList();
+        listType = 'ul';
+        listItems.push(unorderedMatch[1]);
+        return;
+      }
+
+      const orderedMatch = line.match(/^\s*\d+\.\s+(.+)$/);
+      if (orderedMatch) {
+        flushParagraph();
+        flushQuote();
+        if (listType && listType !== 'ol') flushList();
+        listType = 'ol';
+        listItems.push(orderedMatch[1]);
+        return;
+      }
+
+      const quoteMatch = line.match(/^\s*>\s?(.*)$/);
+      if (quoteMatch) {
+        flushParagraph();
+        flushList();
+        quoteLines.push(quoteMatch[1]);
+        return;
+      }
+
+      flushList();
+      flushQuote();
+      paragraphLines.push(line);
+    });
+
+    flushAll();
+    return htmlBlocks.join('');
+  }
+
+  renderMarkdownInline(text) {
+    const codeSpans = [];
+    let html = this.escapeHtml(text).replace(/`([^`]+)`/g, (_match, code) => {
+      const token = `§CODESPAN${codeSpans.length}§`;
+      codeSpans.push(`<code>${code}</code>`);
+      return token;
+    });
+
+    html = html.replace(/\[([^\]]+)]\(([^)\s]+)\)/g, (_match, label, url) => {
+      const safeUrl = this.getSafeDescriptionUrl(this.decodeHtmlEntities(url));
+      if (!safeUrl) return label;
+      return `<a href="${this.escapeHtmlAttribute(safeUrl)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    });
+
+    html = html
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/__([^_]+)__/g, '<strong>$1</strong>')
+      .replace(/~~([^~]+)~~/g, '<s>$1</s>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+      .replace(/_([^_]+)_/g, '<em>$1</em>');
+
+    html = this.restoreAllowedDescriptionTags(html);
+    codeSpans.forEach((codeHtml, index) => {
+      html = html.replace(`§CODESPAN${index}§`, codeHtml);
+    });
+
+    return html;
+  }
+
+  sanitizeBasicDescriptionHtml(text) {
+    const cleanText = String(text ?? '').replace(/<script\b[\s\S]*?<\/script>/gi, '').replace(/<style\b[\s\S]*?<\/style>/gi, '');
+    const escaped = this.escapeHtml(cleanText).replace(/\r\n?|\n/g, '<br>');
+    return this.restoreAllowedDescriptionTags(escaped);
+  }
+
+  restoreAllowedDescriptionTags(html) {
+    const allowedSimpleTags = 'b|strong|i|em|u|s|br|p|div|ul|ol|li|blockquote|code|pre|h[1-6]|table|thead|tbody|tfoot|tr|td|th';
+
+    const renderAnchor = (attrs, content = '') => {
+      const hrefMatch = attrs.match(/href\s*=\s*(?:&quot;([^&]*)&quot;|&#39;([^&]*)&(?:#39|apos);|"([^"]*)"|'([^']*)'|([^\s&"']+))/i);
+      const href = hrefMatch ? this.decodeHtmlEntities(hrefMatch[1] || hrefMatch[2] || hrefMatch[3] || hrefMatch[4] || hrefMatch[5] || '') : '';
+      const safeUrl = this.getSafeDescriptionUrl(href);
+      if (!safeUrl) return content;
+      return `<a href="${this.escapeHtmlAttribute(safeUrl)}" target="_blank" rel="noopener noreferrer">${content}</a>`;
+    };
+
+    return String(html ?? '')
+      .replace(/&lt;a\s+([\s\S]*?)&gt;([\s\S]*?)&lt;\/a&gt;/gi, (_match, attrs, content) => renderAnchor(attrs, content))
+      .replace(/&lt;a\s+([\s\S]*?)&gt;/gi, (_match, attrs) => renderAnchor(attrs).replace('</a>', ''))
+      .replace(/&lt;\/a&gt;/gi, '</a>')
+      .replace(new RegExp(`&lt;(/?)(${allowedSimpleTags})(?:\\s+[\\s\\S]*?)?\\s*(/?)&gt;`, 'gi'), (_match, closing, tag, selfClosing) => {
+        const normalizedTag = tag.toLowerCase();
+        if (normalizedTag === 'br') return '<br>';
+        return closing ? `</${normalizedTag}>` : `<${normalizedTag}${selfClosing ? ' /' : ''}>`;
+      });
+  }
+
+  getSafeDescriptionUrl(url) {
+    const value = String(url ?? '').trim();
+    if (!value) return '';
+
+    if (/^(https?:|mailto:|tel:)/i.test(value) || value.startsWith('/') || value.startsWith('#')) {
+      return value;
+    }
+
+    return '';
+  }
+
+  decodeHtmlEntities(text) {
+    return String(text ?? '')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;|&apos;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
   }
 
   escapeHtml(text) {

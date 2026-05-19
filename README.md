@@ -26,6 +26,7 @@ Designed for clarity at a glance, with flexible views and deep customization.
 * 🗓️ **Schedule View** – Detailed list-style agenda
 * 👨‍👩‍👧‍👦 **Multi-calendar support** – Combine multiple calendars into one view
 * 📝 **Full event management** – Create, edit, and manage events (integration dependent)
+* ✨ **Rich event descriptions** – Display Markdown, basic HTML, and safe inline markup in event details
 * 🌤️ **Weather forecast display** – Built-in weather insights alongside your schedule
 * 🎨 **Highly customizable** – Layout, styling, visibility, and behavior options
 * ⚡ **Fast & responsive** – Optimized for wall tablets and dashboards

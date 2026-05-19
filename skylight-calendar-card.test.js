@@ -380,6 +380,49 @@ test('calendar render includes header controls and modal container', () => {
 });
 
 
+
+test('renderEventDescription supports markdown formatting with safe links', () => {
+  const card = makeCard();
+  const html = card.renderEventDescription('# Details\n\nBring **snacks** and [agenda](https://example.com/path?a=1&b=2).\n- RSVP\n- Arrive `early`');
+
+  assert.match(html, /<h1>Details<\/h1>/);
+  assert.match(html, /<strong>snacks<\/strong>/);
+  assert.match(html, /<a href="https:\/\/example\.com\/path\?a=1&amp;b=2" target="_blank" rel="noopener noreferrer">agenda<\/a>/);
+  assert.match(html, /<ul><li>RSVP<\/li><li>Arrive <code>early<\/code><\/li><\/ul>/);
+});
+
+test('renderEventDescription allows basic HTML but strips scripts and unsafe links', () => {
+  const card = makeCard();
+  const html = card.renderEventDescription('<p><b>Bring plates</b></p><script>alert(1)</script><a href="javascript:alert(1)">bad</a><a href="/local/info">good</a>');
+
+  assert.match(html, /<p><b>Bring plates<\/b><\/p>/);
+  assert.doesNotMatch(html, /<script|alert\(1\)|javascript:/);
+  assert.match(html, />bad/);
+  assert.doesNotMatch(html, /bad<\/a>/);
+  assert.match(html, /<a href="\/local\/info" target="_blank" rel="noopener noreferrer">good<\/a>/);
+});
+
+test('renderEventDescription restores HTML links escaped with literal quoted hrefs', () => {
+  const card = makeCard();
+  card.escapeHtml = (text) => String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  const html = card.renderEventDescription('<p><a href="/local/rich-info">More info</a></p>');
+
+  assert.match(html, /<a href="\/local\/rich-info" target="_blank" rel="noopener noreferrer">More info<\/a>/);
+});
+
+test('renderEventDescription keeps common HTML wrappers from rendering as raw text', () => {
+  const card = makeCard();
+  const html = card.renderEventDescription('<div>Line 1</div><div>Line 2</div><table><tr><th>When</th><td>Noon</td></tr></table>');
+
+  assert.match(html, /<div>Line 1<\/div><div>Line 2<\/div>/);
+  assert.match(html, /<table><tr><th>When<\/th><td>Noon<\/td><\/tr><\/table>/);
+  assert.doesNotMatch(html, /&lt;\/?(?:div|table|tr|th|td)\b/i);
+});
+
 test('weather renders Home Assistant mdi icons instead of emoji glyphs', () => {
   const card = makeCard({
     entities: ['calendar.family'],
