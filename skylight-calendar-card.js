@@ -1748,43 +1748,59 @@ class SkylightCalendarCard extends HTMLElement {
 
     const normalized = { ...rawConditions };
 
-    if (normalized.title_contains !== undefined && normalized.title === undefined) {
-      normalized.title = `contains:${normalized.title_contains}`;
+    if (normalized.title_contains !== undefined) {
+      if (normalized.title === undefined) {
+        normalized.title = `contains:${normalized.title_contains}`;
+      }
       delete normalized.title_contains;
     }
 
-    if (normalized.summary_contains !== undefined && normalized.summary === undefined) {
-      normalized.summary = `contains:${normalized.summary_contains}`;
+    if (normalized.summary_contains !== undefined) {
+      if (normalized.summary === undefined) {
+        normalized.summary = `contains:${normalized.summary_contains}`;
+      }
       delete normalized.summary_contains;
     }
 
-    if (normalized.location_contains !== undefined && normalized.location === undefined) {
-      normalized.location = `contains:${normalized.location_contains}`;
+    if (normalized.location_contains !== undefined) {
+      if (normalized.location === undefined) {
+        normalized.location = `contains:${normalized.location_contains}`;
+      }
       delete normalized.location_contains;
     }
 
-    if (normalized.calendar_entity !== undefined && normalized.calendar === undefined) {
-      normalized.calendar = normalized.calendar_entity;
+    if (normalized.calendar_entity !== undefined) {
+      if (normalized.calendar === undefined) {
+        normalized.calendar = normalized.calendar_entity;
+      }
       delete normalized.calendar_entity;
     }
 
-    if (normalized.entity_id !== undefined && normalized.calendar === undefined) {
-      normalized.calendar = normalized.entity_id;
+    if (normalized.entity_id !== undefined) {
+      if (normalized.calendar === undefined) {
+        normalized.calendar = normalized.entity_id;
+      }
       delete normalized.entity_id;
     }
 
-    if (normalized.entity !== undefined && normalized.calendar === undefined) {
-      normalized.calendar = normalized.entity;
+    if (normalized.entity !== undefined) {
+      if (normalized.calendar === undefined) {
+        normalized.calendar = normalized.entity;
+      }
       delete normalized.entity;
     }
 
-    if (normalized.all_day !== undefined && normalized.all_day_event === undefined) {
-      normalized.all_day_event = normalized.all_day;
+    if (normalized.all_day !== undefined) {
+      if (normalized.all_day_event === undefined) {
+        normalized.all_day_event = normalized.all_day;
+      }
       delete normalized.all_day;
     }
 
-    if (normalized.all_day_event !== undefined && normalized.all_day === undefined) {
-      normalized.all_day = normalized.all_day_event;
+    if (normalized.all_day_event !== undefined) {
+      if (normalized.all_day === undefined) {
+        normalized.all_day = normalized.all_day_event;
+      }
       delete normalized.all_day_event;
     }
 
