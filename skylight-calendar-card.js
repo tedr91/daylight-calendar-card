@@ -1213,6 +1213,7 @@ class SkylightCalendarCard extends HTMLElement {
     const normalizedEventStyles = this.normalizeEventStyles(config.event_styles || []);
     const normalizedLocale = resolveLanguage(config.locale || config.language || this._hass?.locale?.language || this._hass?.language);
     const normalizedDayStyles = this.normalizeDayStyles(config.day_styles || [], normalizedLocale);
+    const normalizedDayBadges = this.normalizeDayBadges(config.day_badges || []);
     const normalizedHeaderColor = this.normalizeSingleColor(config.header_color);
     const normalizedHeaderTextColor = this.normalizeSingleColor(config.header_text_color);
     const hasConfiguredHeaderBackgroundOpacity = config.header_background_opacity !== undefined && config.header_background_opacity !== null && config.header_background_opacity !== '';
@@ -1305,6 +1306,7 @@ class SkylightCalendarCard extends HTMLElement {
       event_font_colors: normalizedEventFontColors, // Per-calendar font colors for event bubble text
       event_styles: normalizedEventStyles, // Per-event styling rules with match logic
       day_styles: normalizedDayStyles, // Per-day styling rules
+      day_badges: normalizedDayBadges, // Per-day header badges (YAML only)
       hide_times_for_calendars: config.hide_times_for_calendars || [], // Hide times in schedule view for specific calendars
       show_current_time_bar: config.show_current_time_bar || false, // Show a "now" indicator in schedule view
       header_color: normalizedHeaderColor !== undefined ? normalizedHeaderColor : 'var(--primary-color)', // Custom header background color/gradient
@@ -1353,8 +1355,8 @@ class SkylightCalendarCard extends HTMLElement {
       calendar_person_entities: normalizedCalendarPersonEntities,
       agenda_compact_events: config.agenda_compact_events ?? false,
       event_styles: normalizedEventStyles,
-      day_styles: normalizedDayStyles
-      ,
+      day_styles: normalizedDayStyles,
+      day_badges: normalizedDayBadges,
       event_color_mode: this.normalizeEventColorMode(config.event_color_mode ?? 'classic'),
       event_neutral_background: this.normalizeSingleColor(config.event_neutral_background) || '#F8F3E9',
       event_tint_opacity: this.normalizeBackgroundOpacity(config.event_tint_opacity, 80),
@@ -1737,6 +1739,109 @@ class SkylightCalendarCard extends HTMLElement {
         return normalized;
       })
       .filter(Boolean);
+  }
+
+
+
+  normalizeDayBadgeConditions(rawConditions) {
+    if (!rawConditions || typeof rawConditions !== 'object' || Array.isArray(rawConditions)) return null;
+
+    const normalized = { ...rawConditions };
+
+    if (normalized.title_contains !== undefined && normalized.title === undefined) {
+      normalized.title = `contains:${normalized.title_contains}`;
+      delete normalized.title_contains;
+    }
+
+    if (normalized.summary_contains !== undefined && normalized.summary === undefined) {
+      normalized.summary = `contains:${normalized.summary_contains}`;
+      delete normalized.summary_contains;
+    }
+
+    if (normalized.location_contains !== undefined && normalized.location === undefined) {
+      normalized.location = `contains:${normalized.location_contains}`;
+      delete normalized.location_contains;
+    }
+
+    if (normalized.calendar_entity !== undefined && normalized.calendar === undefined) {
+      normalized.calendar = normalized.calendar_entity;
+      delete normalized.calendar_entity;
+    }
+
+    if (normalized.entity_id !== undefined && normalized.calendar === undefined) {
+      normalized.calendar = normalized.entity_id;
+      delete normalized.entity_id;
+    }
+
+    if (normalized.entity !== undefined && normalized.calendar === undefined) {
+      normalized.calendar = normalized.entity;
+      delete normalized.entity;
+    }
+
+    if (normalized.all_day !== undefined && normalized.all_day_event === undefined) {
+      normalized.all_day_event = normalized.all_day;
+      delete normalized.all_day;
+    }
+
+    if (normalized.all_day_event !== undefined && normalized.all_day === undefined) {
+      normalized.all_day = normalized.all_day_event;
+      delete normalized.all_day_event;
+    }
+
+    return normalized;
+  }
+
+  normalizeDayBadges(rawRules) {
+    if (!Array.isArray(rawRules)) return [];
+
+    return rawRules
+      .map((rule) => {
+        if (!rule || typeof rule !== 'object') return null;
+        const conditions = this.normalizeDayBadgeConditions(rule.conditions);
+        if (!conditions) return null;
+
+        const text = this.normalizeEventTextValue(rule.text);
+        const icon = this.normalizeEventTextValue(rule.icon);
+        const normalizedText = text || '';
+        const normalizedIcon = icon || '';
+        if (!normalizedText && !normalizedIcon) return null;
+
+        const normalized = {
+          conditions
+        };
+        if (normalizedText) normalized.text = normalizedText;
+        if (!normalizedText && normalizedIcon) normalized.icon = normalizedIcon;
+
+        const backgroundColor = this.normalizeSingleColor(rule.background_color);
+        if (backgroundColor) normalized.background_color = backgroundColor;
+        const color = this.normalizeSingleColor(rule.color);
+        if (color) normalized.color = color;
+
+        const size = this.normalizeStyleSizeValue(rule.size);
+        if (size) normalized.size = size;
+
+        const fontSize = this.normalizeStyleSizeValue(rule.font_size);
+        if (fontSize) normalized.font_size = fontSize;
+        return normalized;
+      })
+      .filter(Boolean);
+  }
+
+
+  normalizeStyleSizeValue(value) {
+    if (value === undefined || value === null || value === '') return null;
+
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+      return `${value}px`;
+    }
+
+    const trimmed = String(value).trim();
+    if (!trimmed) return null;
+    if (/^\d*\.?\d+(px|rem|em|%)$/i.test(trimmed)) return trimmed;
+
+    const parsed = Number(trimmed);
+    if (Number.isFinite(parsed) && parsed > 0) return `${parsed}px`;
+    return null;
   }
 
   normalizeStyleBorderWidth(value) {
@@ -3247,7 +3352,7 @@ class SkylightCalendarCard extends HTMLElement {
       }
 
       .calendar-badge-inline .calendar-badge-name {
-        font-size: 12px;
+        font-size: var(--day-badge-font-size, 12px);
       }
 
       .calendar-badge-inline .calendar-badge-person-state {
@@ -3588,7 +3693,7 @@ class SkylightCalendarCard extends HTMLElement {
         padding: 12px 8px;
         text-align: center;
         font-weight: 600;
-        font-size: 12px;
+        font-size: var(--day-badge-font-size, 12px);
         text-transform: uppercase;
         color: #6b7280;
         letter-spacing: 0.5px;
@@ -3664,6 +3769,35 @@ class SkylightCalendarCard extends HTMLElement {
         margin-bottom: 4px;
       }
 
+      .day-badges {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        margin-left: auto;
+        max-width: 100%;
+        overflow: hidden;
+      }
+
+      .day-badge {
+        width: var(--day-badge-size, 30px);
+        height: var(--day-badge-size, 30px);
+        min-width: var(--day-badge-size, 30px);
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: var(--day-badge-font-size, 12px);
+        font-weight: 700;
+        line-height: 1;
+        background: var(--day-badge-background, var(--primary-color));
+        color: var(--day-badge-color, var(--text-primary-color, #fff));
+      }
+
+      .day-badge ha-icon {
+        --mdc-icon-size: calc(var(--day-badge-size, 30px) * 0.53);
+        color: inherit;
+      }
+
       .day-header-row {
         display: flex;
         align-items: flex-start;
@@ -3692,7 +3826,7 @@ class SkylightCalendarCard extends HTMLElement {
       }
 
       .month-day-forecast .forecast-temperatures {
-        font-size: 12px;
+        font-size: var(--day-badge-font-size, 12px);
         gap: 2px;
       }
 
@@ -3835,7 +3969,7 @@ class SkylightCalendarCard extends HTMLElement {
       }
 
       .week-day-name {
-        font-size: 12px;
+        font-size: var(--day-badge-font-size, 12px);
         font-weight: 600;
         text-transform: uppercase;
         color: #6b7280;
@@ -3998,7 +4132,7 @@ class SkylightCalendarCard extends HTMLElement {
       }
 
       .agenda-day-weekday {
-        font-size: 12px;
+        font-size: var(--day-badge-font-size, 12px);
         font-weight: 600;
         text-transform: uppercase;
         color: #6b7280;
@@ -4127,7 +4261,7 @@ class SkylightCalendarCard extends HTMLElement {
 
       .agenda-empty-day {
         color: #9ca3af;
-        font-size: 12px;
+        font-size: var(--day-badge-font-size, 12px);
         padding: 8px 0;
       }
 
@@ -4386,7 +4520,7 @@ class SkylightCalendarCard extends HTMLElement {
       }
 
       .week-standard-day-name {
-        font-size: 12px;
+        font-size: var(--day-badge-font-size, 12px);
         font-weight: 600;
         text-transform: uppercase;
         color: #6b7280;
@@ -6063,6 +6197,7 @@ class SkylightCalendarCard extends HTMLElement {
                   <div class="week-day-name">${dayNames[date.getDay()]}</div>
                   <div class="week-day-meta-row">
                     <div class="week-day-date">${date.getDate()}</div>
+                    ${this.renderDayBadges(date, events)}
                     ${this.renderDayForecast(date, 'week-compact')}
                   </div>
                 </div>
@@ -6147,6 +6282,7 @@ class SkylightCalendarCard extends HTMLElement {
                   <div class="week-standard-day-name">${dayNames[date.getDay()]}</div>
                   <div class="week-day-meta-row">
                     <div class="week-standard-day-date">${date.getDate()}</div>
+                    ${this.renderDayBadges(date, dayEvents)}
                     ${this.renderDayForecast(date, 'week-standard')}
                   </div>
                 </div>
@@ -7179,6 +7315,33 @@ class SkylightCalendarCard extends HTMLElement {
     `;
   }
 
+  getDayBadges(date, dayEvents) {
+    const rules = Array.isArray(this._config?.day_badges) ? this._config.day_badges : [];
+    if (!rules.length || !Array.isArray(dayEvents) || !dayEvents.length) return [];
+
+    return rules.filter((rule) => dayEvents.some((event) => this.eventMatchesRule(event, rule.conditions)));
+  }
+
+  renderDayBadges(date, dayEvents) {
+    const badges = this.getDayBadges(date, dayEvents);
+    if (!badges.length) return '';
+
+    const badgesHtml = badges.map((badge) => {
+      const style = [
+        badge.background_color ? `--day-badge-background: ${badge.background_color};` : '',
+        badge.color ? `--day-badge-color: ${badge.color};` : '',
+        badge.size ? `--day-badge-size: ${badge.size};` : '',
+        badge.font_size ? `--day-badge-font-size: ${badge.font_size};` : ''
+      ].join(' ');
+      const content = badge.text
+        ? `<span class="day-badge-text">${this.escapeHtml(badge.text)}</span>`
+        : `<ha-icon icon="${this.escapeHtml(badge.icon)}"></ha-icon>`;
+      return `<span class="day-badge" style="${style}">${content}</span>`;
+    }).join('');
+
+    return `<div class="day-badges">${badgesHtml}</div>`;
+  }
+
   renderDay(dayNum, date, isOtherMonth) {
     const today = new Date();
     const isToday = date.toDateString() === today.toDateString();
@@ -7202,6 +7365,7 @@ class SkylightCalendarCard extends HTMLElement {
       <div class="${classes}" data-date="${date.toISOString()}"${dayStyleAttr}>
         <div class="day-header-row">
           <div class="day-number">${dayNum}</div>
+          ${this.renderDayBadges(date, dayEvents)}
           ${this.renderDayForecast(date, 'month')}
         </div>
         ${dayEvents.slice(0, visibleEvents).map(event => this.renderMonthDayEvent(event, date)).join('')}
@@ -10925,6 +11089,7 @@ class SkylightCalendarCard extends HTMLElement {
       event_neutral_background: '#F8F3E9',
       event_tint_opacity: 80,
       event_color_bar_width: 18,
+      day_badges: [],
       hide_calendars: false,
       hide_year: false,
       hide_controls: false,
