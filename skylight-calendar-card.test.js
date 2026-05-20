@@ -710,7 +710,10 @@ test('day_badges renders multiple matching badge rules', () => {
     { conditions: { calendar: 'calendar.a' }, icon: 'mdi:calendar' }
   ] });
 
-
+  const events = [{ entityId: 'calendar.a', summary: 'Daily Sync', start: { dateTime: '2026-05-01T10:00:00Z' }, end: { dateTime: '2026-05-01T11:00:00Z' } }];
+  const html = card.renderDayBadges(new Date('2026-05-01T00:00:00Z'), events);
+  assert.equal((html.match(/class="day-badge"/g) || []).length, 2);
+});
 
 test('day_badges supports legacy-style condition aliases', () => {
   const card = makeCard({ entities: ['calendar.a'], day_badges: [{ conditions: { entity: 'calendar.a', location_contains: 'mountain' }, text: 'L' }] });
@@ -718,17 +721,13 @@ test('day_badges supports legacy-style condition aliases', () => {
   const html = card.renderDayBadges(new Date('2026-05-01T00:00:00Z'), events);
   assert.match(html, /day-badge-text">L</);
 });
+
 test('day_badges supports configurable size and font_size', () => {
   const card = makeCard({ entities: ['calendar.a'], day_badges: [{ conditions: { title: 'ballet' }, text: 'PL', size: 32, font_size: '14px' }] });
   const events = [{ entityId: 'calendar.a', summary: 'Ballet Practice', start: { dateTime: '2026-05-01T10:00:00Z' }, end: { dateTime: '2026-05-01T11:00:00Z' } }];
   const html = card.renderDayBadges(new Date('2026-05-01T00:00:00Z'), events);
   assert.match(html, /--day-badge-size: 32px;/);
   assert.match(html, /--day-badge-font-size: 14px;/);
-});
-
-  const events = [{ entityId: 'calendar.a', summary: 'Daily Sync', start: { dateTime: '2026-05-01T10:00:00Z' }, end: { dateTime: '2026-05-01T11:00:00Z' } }];
-  const html = card.renderDayBadges(new Date('2026-05-01T00:00:00Z'), events);
-  assert.equal((html.match(/class="day-badge"/g) || []).length, 2);
 });
 test('day_styles evaluate today/weekend/has_event rules and auto background', () => {
   const card = makeCard({
