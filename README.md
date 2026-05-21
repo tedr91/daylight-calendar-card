@@ -4,8 +4,8 @@
 ![Github All Releases](https://img.shields.io/github/downloads/superdingo101/daylight-calendar-card/total.svg)
 [![GitHub issues](https://img.shields.io/github/issues/superdingo101/daylight-calendar-card.svg)](https://github.com/superdingo101/daylight-calendar-card/issues)
 [![License](https://img.shields.io/github/license/superdingo101/daylight-calendar-card.svg)](LICENSE)
-<a><img src="https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-pink?style=for-the-badge&logo=github" alt="GithHub Sponsors" style="height: 20px !important;" ></a>
-<a><img src="https://img.shields.io/badge/Donate-Buy%20me%20a%20beer-yellow?style=for-the-badge&logo=buy-me-a-coffee" alt="Buy Me a Coffee" style="height: 20px !important;" ></a>
+<a href="https://github.com/sponsors/superdingo101"><img src="https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-pink?style=for-the-badge&logo=github" alt="GitHub Sponsors" style="height: 20px !important;" ></a>
+<a href="https://buymeacoffee.com/superdingo101"><img src="https://img.shields.io/badge/Donate-Buy%20me%20a%20beer-yellow?style=for-the-badge&logo=buy-me-a-coffee" alt="Buy Me a Coffee" style="height: 20px !important;" ></a>
 
 # Daylight Calendar Card for Home Assistant
 
