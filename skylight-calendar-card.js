@@ -1650,7 +1650,12 @@ class SkylightCalendarCard extends HTMLElement {
         if (!rule || typeof rule !== 'object') return null;
 
         const match = rule.match && typeof rule.match === 'object' ? rule.match : null;
-        const style = rule.style && typeof rule.style === 'object' ? rule.style : null;
+        let style = null;
+        if (typeof rule.style === 'string' && rule.style.trim().toLowerCase() === 'hide') {
+          style = { hide: true };
+        } else if (rule.style && typeof rule.style === 'object') {
+          style = rule.style;
+        }
         if (!match || !style) return null;
 
         const numericPriority = Number(rule.priority);
@@ -1983,6 +1988,8 @@ class SkylightCalendarCard extends HTMLElement {
     if (showTime !== null) normalized.show_time = showTime;
     const hideCalendarBubble = this.normalizeBooleanStyleValue(style.hide_event_calendar_bubble);
     if (hideCalendarBubble !== null) normalized.hide_event_calendar_bubble = hideCalendarBubble;
+    const hideEvent = this.normalizeBooleanStyleValue(style.hide);
+    if (hideEvent !== null) normalized.hide = hideEvent;
     if (style.event_title_prefix !== undefined) normalized.event_title_prefix = this.normalizeEventTitlePrefixMode(style.event_title_prefix);
 
     return normalized;
@@ -6202,8 +6209,9 @@ class SkylightCalendarCard extends HTMLElement {
       <div class="week-compact-container">
         ${weekDays.map(date => {
           const isToday = date.toDateString() === today.toDateString();
-          const events = this.sortEventsForDate(this.getEventsForDay(date), date);
-          const dayStyle = this.getDayStyleAttributes(date, events, isToday);
+          const dayEventsForMatching = this.getEventsForDay(date, { includeHiddenStyledEvents: true });
+          const events = this.sortEventsForDate(dayEventsForMatching.filter((event) => !this.isEventHiddenByStyle(event)), date);
+          const dayStyle = this.getDayStyleAttributes(date, dayEventsForMatching, isToday);
           const dayStyleAttr = dayStyle.style ? ` style="${dayStyle.style}"` : '';
 
           return `
@@ -6213,7 +6221,7 @@ class SkylightCalendarCard extends HTMLElement {
                   <div class="week-day-name">${dayNames[date.getDay()]}</div>
                   <div class="week-day-meta-row">
                     <div class="week-day-date">${date.getDate()}</div>
-                    ${this.renderDayBadges(date, events)}
+                    ${this.renderDayBadges(date, dayEventsForMatching)}
                     ${this.renderDayForecast(date, 'week-compact')}
                   </div>
                 </div>
@@ -6285,10 +6293,11 @@ class SkylightCalendarCard extends HTMLElement {
         <!-- Day columns -->
         ${weekDays.map(date => {
           const isToday = date.toDateString() === today.toDateString();
-          const dayEvents = this.sortEventsForDate(this.getEventsForDay(date), date);
+          const dayEventsForMatching = this.getEventsForDay(date, { includeHiddenStyledEvents: true });
+          const dayEvents = this.sortEventsForDate(dayEventsForMatching.filter((event) => !this.isEventHiddenByStyle(event)), date);
           const dateKey = this.getDateKey(date);
           const allDayLanes = allDayLayout.dayLanesByDateKey.get(dateKey) || [];
-          const dayStyle = this.getDayStyleAttributes(date, dayEvents, isToday);
+          const dayStyle = this.getDayStyleAttributes(date, dayEventsForMatching, isToday);
           const dayStyleAttr = dayStyle.style ? ` style="${dayStyle.style}"` : '';
 
           return `
@@ -6298,7 +6307,7 @@ class SkylightCalendarCard extends HTMLElement {
                   <div class="week-standard-day-name">${dayNames[date.getDay()]}</div>
                   <div class="week-day-meta-row">
                     <div class="week-standard-day-date">${date.getDate()}</div>
-                    ${this.renderDayBadges(date, dayEvents)}
+                    ${this.renderDayBadges(date, dayEventsForMatching)}
                     ${this.renderDayForecast(date, 'week-standard')}
                   </div>
                 </div>
@@ -6333,7 +6342,12 @@ class SkylightCalendarCard extends HTMLElement {
     const agendaDayEntries = agendaDays
       .map((date) => ({
         date,
-        events: this.sortEventsForDate(this.getEventsForDay(date), date)
+        matchingEvents: this.getEventsForDay(date, { includeHiddenStyledEvents: true }),
+        events: null
+      }))
+      .map((entry) => ({
+        ...entry,
+        events: this.sortEventsForDate(entry.matchingEvents.filter((event) => !this.isEventHiddenByStyle(event)), entry.date)
       }))
       .filter((entry) => !shouldHideEmptyDays || entry.events.length > 0);
 
@@ -6348,7 +6362,7 @@ class SkylightCalendarCard extends HTMLElement {
       }
 
       const isToday = date.toDateString() === today.toDateString();
-      const dayStyle = this.getDayStyleAttributes(date, events, isToday);
+      const dayStyle = this.getDayStyleAttributes(date, entry.matchingEvents, isToday);
       const dayStyleAttr = dayStyle.style ? ` style="${dayStyle.style}"` : '';
       agendaRows.push(`
         <div class="agenda-day-row ${isToday ? 'today' : ''} ${dayStyle.className}" data-date="${date.toISOString()}"${dayStyleAttr}>
@@ -7361,8 +7375,8 @@ class SkylightCalendarCard extends HTMLElement {
   renderDay(dayNum, date, isOtherMonth) {
     const today = new Date();
     const isToday = date.toDateString() === today.toDateString();
-    let dayEvents = this.getEventsForDay(date);
-
+    const dayEventsForMatching = this.getEventsForDay(date, { includeHiddenStyledEvents: true });
+    let dayEvents = dayEventsForMatching.filter((event) => !this.isEventHiddenByStyle(event));
     dayEvents = this.sortEventsForDate(dayEvents, date);
 
     const maxVisible = this.getMaxVisibleEventsForMonthDay();
@@ -7373,7 +7387,7 @@ class SkylightCalendarCard extends HTMLElement {
     let classes = 'day-cell';
     if (isOtherMonth) classes += ' other-month';
     if (isToday) classes += ' today';
-    const dayStyle = this.getDayStyleAttributes(date, dayEvents, isToday);
+    const dayStyle = this.getDayStyleAttributes(date, dayEventsForMatching, isToday);
     classes += dayStyle.className ? ` ${dayStyle.className}` : '';
     const dayStyleAttr = dayStyle.style ? ` style="${dayStyle.style}"` : '';
 
@@ -7381,7 +7395,7 @@ class SkylightCalendarCard extends HTMLElement {
       <div class="${classes}" data-date="${date.toISOString()}"${dayStyleAttr}>
         <div class="day-header-row">
           <div class="day-number">${dayNum}</div>
-          ${this.renderDayBadges(date, dayEvents)}
+          ${this.renderDayBadges(date, dayEventsForMatching)}
           ${this.renderDayForecast(date, 'month')}
         </div>
         ${dayEvents.slice(0, visibleEvents).map(event => this.renderMonthDayEvent(event, date)).join('')}
@@ -7682,6 +7696,10 @@ class SkylightCalendarCard extends HTMLElement {
     return overrides;
   }
 
+  isEventHiddenByStyle(event) {
+    return this.getEventStyleOverrides(event)?.hide === true;
+  }
+
   createZebraStripeGradient(colors) {
     if (colors.length === 1) {
       return colors[0];
@@ -7959,11 +7977,14 @@ class SkylightCalendarCard extends HTMLElement {
     });
   }
 
-  getEventsForDay(date) {
+  getEventsForDay(date, { includeHiddenStyledEvents = false } = {}) {
     const sourceEvents = this.combineDuplicateCalendarEvents(this._events);
 
     return sourceEvents.filter(event => {
       if (this.getVisibleCalendarColorsForEvent(event).length === 0) {
+        return false;
+      }
+      if (!includeHiddenStyledEvents && this.isEventHiddenByStyle(event)) {
         return false;
       }
 

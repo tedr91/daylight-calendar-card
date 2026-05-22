@@ -675,6 +675,61 @@ test('event_styles apply rule priority and match logic', () => {
   assert.equal(card.eventMatchesRule(event, { title: 'meeting', not: { title: 'holiday' } }), true);
 });
 
+test('event_styles supports `style: hide` and keeps hidden events available for day_badges matching', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    event_styles: [{ match: { title: 'private' }, style: 'hide' }],
+    day_badges: [{ conditions: { title: 'private' }, text: 'P' }]
+  });
+  card._events = [
+    { entityId: 'calendar.a', color: '#f00', summary: 'Private Meeting', start: { dateTime: '2026-05-01T10:00:00Z' }, end: { dateTime: '2026-05-01T11:00:00Z' } }
+  ];
+
+  const day = new Date('2026-05-01T00:00:00Z');
+  const visibleEvents = card.getEventsForDay(day);
+  const badgeEvents = card.getEventsForDay(day, { includeHiddenStyledEvents: true });
+
+  assert.equal(visibleEvents.length, 0);
+  assert.equal(badgeEvents.length, 1);
+  assert.match(card.renderDayBadges(day, badgeEvents), /day-badge-text">P</);
+});
+
+test('event_styles supports object hide syntax and hidden events still trigger day_styles has_event', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    event_styles: [{ match: { title: 'private' }, style: { hide: true } }],
+    day_styles: [{ condition: 'has_event', calendar: 'calendar.a', title_match: 'private', background: '#123456' }]
+  });
+  card._events = [
+    { entityId: 'calendar.a', color: '#f00', summary: 'Private Meeting', start: { dateTime: '2026-05-01T10:00:00Z' }, end: { dateTime: '2026-05-01T11:00:00Z' } }
+  ];
+
+  const day = new Date('2026-05-01T00:00:00Z');
+  const matchingEvents = card.getEventsForDay(day, { includeHiddenStyledEvents: true });
+  const visibleEvents = matchingEvents.filter((event) => !card.isEventHiddenByStyle(event));
+  const dayStyle = card.getDayStyleAttributes(day, matchingEvents, false);
+
+  assert.equal(visibleEvents.length, 0);
+  assert.match(dayStyle.style, /#123456/);
+});
+
+test('hidden events do not contribute to month overflow counts', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    max_events: 1,
+    event_styles: [{ match: { title: 'private' }, style: 'hide' }]
+  });
+  card._events = [
+    { entityId: 'calendar.a', color: '#0f0', summary: 'Visible Event', start: { dateTime: '2026-05-01T08:00:00Z' }, end: { dateTime: '2026-05-01T09:00:00Z' } },
+    { entityId: 'calendar.a', color: '#f00', summary: 'Private Event', start: { dateTime: '2026-05-01T10:00:00Z' }, end: { dateTime: '2026-05-01T11:00:00Z' } }
+  ];
+
+  const html = card.renderDay(1, new Date('2026-05-01T00:00:00Z'), false);
+  assert.doesNotMatch(html, /more-events/);
+  assert.doesNotMatch(html, /Private Event/);
+  assert.match(html, /Visible Event/);
+});
+
 
 test('day_badges renders text badge when event title matches', () => {
   const card = makeCard({ entities: ['calendar.a'], day_badges: [{ conditions: { title_contains: 'ballet' }, text: 'PL', background_color: '#ff4b2b', color: '#000000' }] });
