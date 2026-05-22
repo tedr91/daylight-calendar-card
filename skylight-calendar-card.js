@@ -1263,6 +1263,7 @@ class SkylightCalendarCard extends HTMLElement {
       week_days: config.week_days || [0, 1, 2, 3, 4, 5, 6], // Which days to show in week view
       rolling_days_week_compact: config.rolling_days_week_compact ?? null, // If set, compact week view shows current day + N days instead of week_days
       rolling_days_schedule: config.rolling_days_schedule ?? null, // If set, schedule week view shows current day + N days instead of week_days
+      rolling_days_agenda: config.rolling_days_agenda ?? null, // If set, agenda view shows current day + N days and navigates by that period
       rolling_weeks: config.rolling_weeks || null, // If set, show current week + N weeks in month view
       show_week_numbers_month: config.show_week_numbers_month || false, // In month view, show ISO 8601 week numbers on the left side
       show_all_events_month: config.show_all_events_month || false, // In month view, show all events and allow week rows to grow while keeping row minimum height
@@ -1354,6 +1355,7 @@ class SkylightCalendarCard extends HTMLElement {
         : null,
       calendar_person_entities: normalizedCalendarPersonEntities,
       agenda_compact_events: config.agenda_compact_events ?? false,
+      rolling_days_agenda: config.rolling_days_agenda ?? null,
       event_styles: normalizedEventStyles,
       day_styles: normalizedDayStyles,
       day_badges: normalizedDayBadges,
@@ -3036,7 +3038,7 @@ class SkylightCalendarCard extends HTMLElement {
     this._agendaStartDate = new Date(today);
 
     const endDate = new Date(today);
-    endDate.setDate(endDate.getDate() + 14);
+    endDate.setDate(endDate.getDate() + this.getAgendaPeriodDaySpan());
     endDate.setHours(23, 59, 59, 999);
     this._agendaEndDate = endDate;
     this._agendaVisibleStartDate = new Date(today);
@@ -3176,6 +3178,19 @@ class SkylightCalendarCard extends HTMLElement {
     }
 
     return Math.max(1, dayCount || this._agendaDaysPerScrollLoad);
+  }
+
+  getAgendaRollingDays() {
+    if (this._config?.rolling_days_agenda !== null && this._config?.rolling_days_agenda !== undefined) {
+      return this._config.rolling_days_agenda;
+    }
+
+    return null;
+  }
+
+  getAgendaPeriodDaySpan() {
+    const rollingDays = this.getAgendaRollingDays();
+    return rollingDays !== null ? rollingDays : 14;
   }
 
   getRollingDaysForView(viewMode = this._viewMode) {
@@ -8100,7 +8115,9 @@ class SkylightCalendarCard extends HTMLElement {
       const nearBottom = agendaContainer.scrollTop + agendaContainer.clientHeight >= agendaContainer.scrollHeight - threshold;
       const nearTop = agendaContainer.scrollTop <= threshold;
       const canLoadPastAgendaDays = this.canNavigateToPreviousPeriod();
+      const isRollingAgendaMode = this.getAgendaRollingDays() !== null;
 
+      if (isRollingAgendaMode) return;
       if (!nearBottom && !(nearTop && canLoadPastAgendaDays)) return;
 
       this._agendaScrollLoadLock = true;
@@ -8276,7 +8293,10 @@ class SkylightCalendarCard extends HTMLElement {
 
     if (this._viewMode === 'agenda') {
       this.ensureAgendaWindowInitialized();
-      const backwardDays = this.getAgendaViewportDayCapacity();
+      const rollingDays = this.getAgendaRollingDays();
+      const backwardDays = rollingDays !== null
+        ? rollingDays + 1
+        : this.getAgendaViewportDayCapacity();
       this._agendaStartDate.setDate(this._agendaStartDate.getDate() - backwardDays);
       this._agendaStartDate.setHours(0, 0, 0, 0);
       this._agendaEndDate.setDate(this._agendaEndDate.getDate() - backwardDays);
@@ -8320,8 +8340,11 @@ class SkylightCalendarCard extends HTMLElement {
   navigateToNextPeriod() {
     if (this._viewMode === 'agenda') {
       this.ensureAgendaWindowInitialized();
+      const rollingDays = this.getAgendaRollingDays();
       const dayMs = 24 * 60 * 60 * 1000;
-      const windowSpanDays = Math.max(0, Math.round((this._agendaEndDate.getTime() - this._agendaStartDate.getTime()) / dayMs));
+      const windowSpanDays = rollingDays !== null
+        ? rollingDays
+        : Math.max(0, Math.round((this._agendaEndDate.getTime() - this._agendaStartDate.getTime()) / dayMs));
       const visibleRangeFromDom = this.getAgendaVisibleDateRangeFromDom();
       const visibleRangeFromCache = this._agendaVisibleStartDate && this._agendaVisibleEndDate
         ? { startDate: this._agendaVisibleStartDate, endDate: this._agendaVisibleEndDate }
@@ -8329,8 +8352,13 @@ class SkylightCalendarCard extends HTMLElement {
       const visibleRange = visibleRangeFromDom || (
         this.isAgendaRangeWithinCurrentWindow(visibleRangeFromCache) ? visibleRangeFromCache : null
       );
-      const targetStart = visibleRange ? new Date(visibleRange.endDate) : new Date(this._agendaEndDate);
+      const targetStart = rollingDays !== null
+        ? new Date(this._agendaStartDate)
+        : (visibleRange ? new Date(visibleRange.endDate) : new Date(this._agendaEndDate));
       targetStart.setHours(0, 0, 0, 0);
+      if (rollingDays !== null) {
+        targetStart.setDate(targetStart.getDate() + rollingDays + 1);
+      }
 
       const targetEnd = new Date(targetStart);
       targetEnd.setDate(targetEnd.getDate() + windowSpanDays);
@@ -11791,6 +11819,12 @@ class SkylightCalendarCardEditor extends HTMLElement {
         <div class="field field-inline">
           <label for="rolling_days_schedule">Rolling days (schedule view)</label>
           <input id="rolling_days_schedule" data-field="rolling_days_schedule" data-type="nullable-number" type="number" min="1" value="${this._config.rolling_days_schedule ?? ''}" placeholder="Disabled">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field field-inline">
+          <label for="rolling_days_agenda">Rolling days (agenda view)</label>
+          <input id="rolling_days_agenda" data-field="rolling_days_agenda" data-type="nullable-number" type="number" min="1" value="${this._config.rolling_days_agenda ?? ''}" placeholder="Disabled">
         </div>
       </div>
       <div class="field-row">
