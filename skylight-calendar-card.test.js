@@ -541,7 +541,7 @@ test('header button listeners invoke expected actions', () => {
     'view-mode-select': { value: 'month', addEventListener: (evt, cb) => { handlers['view-mode-select:'+evt] = cb; } }
   };
   card.getRootElementById = (id) => elements[id] || null;
-  card._root = { querySelector: () => null, querySelectorAll: () => [] };
+  card._root = { querySelector: () => null, querySelectorAll: (sel) => (sel === '.agenda-day-row' ? [] : []) };
   let prev=0,next=0,add=0,nav=0;
   card.observeModalVisibility = () => {};
   card.navigateToPreviousPeriod = () => { prev++; };
@@ -558,6 +558,65 @@ test('header button listeners invoke expected actions', () => {
   handlers['add-event-btn:click']();
   handlers['header-dashboard-btn:click']();
   assert.equal(prev,1);assert.equal(next,1);assert.equal(add,1);assert.equal(nav,1);
+});
+
+test('agenda rolling days are configurable and include current day + N days', () => {
+  const card = makeCard({ entities: ['calendar.family'], rolling_days_agenda: 4 });
+
+  card.resetAgendaWindowToToday();
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  const spanDays = Math.round((card._agendaEndDate.getTime() - card._agendaStartDate.getTime()) / dayMs);
+  assert.equal(spanDays, 5);
+  assert.equal(card.getAgendaDays().length, 5);
+});
+
+test('agenda vertical scroll loading is disabled in rolling-days mode', async () => {
+  const card = makeCard({ entities: ['calendar.family'], rolling_days_agenda: 2 });
+  const handlers = {};
+  const mkEl = (id) => ({ id, addEventListener: (evt, cb) => { handlers[id + ':' + evt] = cb; } });
+  const agendaContainer = {
+    ...mkEl('agenda-container'),
+    scrollTop: 500,
+    clientHeight: 300,
+    scrollHeight: 780,
+    getBoundingClientRect: () => ({ top: 0, bottom: 300 }),
+    querySelectorAll: () => []
+  };
+  const elements = {
+    'prev-period': mkEl('prev-period'),
+    'next-period': mkEl('next-period'),
+    'today': mkEl('today'),
+    'add-event-btn': mkEl('add-event-btn'),
+    'theme-toggle': mkEl('theme-toggle'),
+    'header-dashboard-btn': mkEl('header-dashboard-btn'),
+    'event-modal': mkEl('event-modal'),
+    'agenda-container': agendaContainer,
+    'view-mode-select': { value: 'agenda', addEventListener: (evt, cb) => { handlers['view-mode-select:'+evt] = cb; } }
+  };
+  card.getRootElementById = (id) => elements[id] || null;
+  card._root = { querySelector: () => null, querySelectorAll: (sel) => (sel === '.agenda-day-row' ? [] : []) };
+  card.observeModalVisibility = () => {};
+  card.navigateToPreviousPeriod = () => {};
+  card.navigateToNextPeriod = () => {};
+  card.showCreateEventModal = () => {};
+  card.navigateToConfiguredDashboard = () => {};
+  card.applyThemeMode = () => {};
+  card.persistPreferences = () => {};
+  card.render = () => {};
+  card._viewMode = 'agenda';
+  card.resetAgendaWindowToToday();
+  const originalStart = new Date(card._agendaStartDate);
+  const originalEnd = new Date(card._agendaEndDate);
+  let ensureCalls = 0;
+  card.ensureEventsForCurrentRange = async () => { ensureCalls += 1; };
+
+  card.attachEventListeners();
+  await handlers['agenda-container:scroll']();
+
+  assert.equal(ensureCalls, 0);
+  assert.equal(card._agendaStartDate.toISOString(), originalStart.toISOString());
+  assert.equal(card._agendaEndDate.toISOString(), originalEnd.toISOString());
 });
 
 test('editor renders key controls and updates config on change', () => {
