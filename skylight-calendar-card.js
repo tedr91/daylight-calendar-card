@@ -1282,6 +1282,7 @@ class SkylightCalendarCard extends HTMLElement {
       compact_header: config.compact_header || false, // Compact header layout
       hide_year: config.hide_year || false, // Hide year in header period label
       hide_calendars: config.hide_calendars || false, // Hide calendar badges from header area
+      hide_header: config.hide_header || false, // Hide entire header area (including background strip)
       hide_calendar_names: config.hide_calendar_names || false, // Header calendar badges: show icons only
       hide_controls: config.hide_controls || false, // Hide all header controls (add/view/theme/navigation)
       hide_navigation_buttons: config.hide_navigation_buttons || false, // Hide previous/next/today header navigation buttons
@@ -5912,7 +5913,7 @@ class SkylightCalendarCard extends HTMLElement {
       ` : ''}
 
       <div class="calendar-container ${this._isDarkMode ? 'dark-mode' : ''} ${hasCustomBackground ? 'custom-background' : ''} ${this._config.hide_year ? 'hide-year' : ''} ${this._config.agenda_compact_events ? 'agenda-compact-events' : ''}" style="${containerStyle}">
-        ${this._config.compact_header ? this.renderCompactHeader() : this.renderStandardHeader()}
+        ${this._config.hide_header ? '' : (this._config.compact_header ? this.renderCompactHeader() : this.renderStandardHeader())}
         <div class="calendar-body">
           ${this.renderCalendarView()}
 
@@ -11156,6 +11157,7 @@ class SkylightCalendarCard extends HTMLElement {
       event_color_bar_width: 18,
       day_badges: [],
       hide_calendars: false,
+      hide_header: false,
       hide_year: false,
       hide_controls: false,
       hide_navigation_buttons: false,
@@ -11842,6 +11844,7 @@ class SkylightCalendarCardEditor extends HTMLElement {
         <label><input type="checkbox" data-field="compact_header" ${this._config.compact_header ? 'checked' : ''}> Compact header</label>
         <label><input type="checkbox" data-field="hide_year" ${this._config.hide_year ? 'checked' : ''}> Hide year in header period label</label>
         <label><input type="checkbox" data-field="hide_calendars" ${this._config.hide_calendars ? 'checked' : ''}> Hide calendar badges</label>
+        <label><input type="checkbox" data-field="hide_header" ${this._config.hide_header ? 'checked' : ''}> Hide entire header</label>
         <label><input type="checkbox" data-field="hide_calendar_names" ${this._config.hide_calendar_names ? 'checked' : ''}> Header badges: hide calendar names</label>
         <label><input type="checkbox" data-field="hide_controls" ${this._config.hide_controls ? 'checked' : ''}> Hide all header controls</label>
         <label><input type="checkbox" data-field="hide_navigation_buttons" ${this._config.hide_navigation_buttons ? 'checked' : ''}> Hide previous/next and today buttons</label>
