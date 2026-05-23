@@ -1201,7 +1201,6 @@ class SkylightCalendarCard extends HTMLElement {
     const language = resolveLanguage(config.language || this._hass?.language || this._hass?.locale?.language);
     this._hasCustomTitle = config.title !== undefined && config.title !== null;
     const previousHiddenCalendars = new Set(this._hiddenCalendars);
-    const configuredMaxEvents = Number(config.max_events);
     const normalizedDefaultView = config.default_view === 'week'
       ? 'week-compact'
       : config.default_view === 'schedule'
@@ -1258,7 +1257,8 @@ class SkylightCalendarCard extends HTMLElement {
       calendar_names: config.calendar_names || {}, // Map entity IDs to friendly names
       calendar_badge_icons: config.calendar_badge_icons || {}, // Map entity IDs to badge icon (mdi:*) or photo URL
       calendar_person_entities: normalizedCalendarPersonEntities, // Map header calendar badges to person entities for state/photo display
-      maxEvents: Number.isFinite(configuredMaxEvents) && configuredMaxEvents >= 0 ? configuredMaxEvents : 0,
+      // Deprecated: accepted for backward compatibility but ignored at runtime.
+      max_events: config.max_events,
       default_view: normalizedDefaultView || 'month', // Default view on load
       week_days: config.week_days || [0, 1, 2, 3, 4, 5, 6], // Which days to show in week view
       rolling_days_week_compact: config.rolling_days_week_compact ?? null, // If set, compact week view shows current day + N days instead of week_days
@@ -2489,15 +2489,7 @@ class SkylightCalendarCard extends HTMLElement {
 
     const merged = Array.from(mergedByKey.values());
     merged.sort((a, b) => this.getEventStartDate(a) - this.getEventStartDate(b));
-    return this.limitEvents(merged);
-  }
-
-  limitEvents(events) {
-    if (this._config.maxEvents === 0) {
-      return events;
-    }
-
-    return events.slice(0, this._config.maxEvents);
+    return merged;
   }
 
   toStableString(value) {
@@ -2572,7 +2564,7 @@ class SkylightCalendarCard extends HTMLElement {
         .flat()
         .sort((a, b) => this.getEventStartDate(a) - this.getEventStartDate(b));
 
-      this._events = this.limitEvents(mergedEvents);
+      this._events = mergedEvents;
       this._loadedEventRange = { startDate, endDate };
       this._lastUnchangedDataRender = Date.now();
       if (preserveScroll) {
@@ -11366,7 +11358,6 @@ class SkylightCalendarCardEditor extends HTMLElement {
       combine_calendars_width: 18,
       event_color_bar_width: 18,
       event_tint_opacity: 80,
-      max_events: 0,
       first_day_of_week: 0,
       header_background_opacity: 0,
       background_opacity: 0
@@ -11943,12 +11934,6 @@ class SkylightCalendarCardEditor extends HTMLElement {
     `);
 
     const eventSection = this.renderSection('Events & schedule', `
-      <div class="field-row">
-        <div class="field field-inline">
-          <label for="max_events">Max events (0 = unlimited)</label>
-          <input id="max_events" data-field="max_events" data-type="number" type="number" min="0" value="${Number(this._config.max_events ?? this._config.maxEvents ?? this.getEditorDefaultValue('max_events'))}">
-        </div>
-      </div>
       <div class="field-row">
         <div class="field field-inline">
           <label for="event_font_size">Event font size</label>
