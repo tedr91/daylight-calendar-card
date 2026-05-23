@@ -872,12 +872,32 @@ test('day_badge CSS variables do not leak into non-badge selectors', () => {
   ];
 
   for (const selector of leakingSelectors) {
-    const selectorIndex = styles.indexOf(selector);
-    assert.notEqual(selectorIndex, -1);
-    const blockEnd = styles.indexOf('}', selectorIndex);
-    const block = styles.slice(selectorIndex, blockEnd + 1);
-    assert.doesNotMatch(block, /var\(--dcc-day-badge-/);
+    let start = 0;
+    let foundAny = false;
+
+    while ((start = styles.indexOf(selector, start)) !== -1) {
+      foundAny = true;
+      const end = styles.indexOf('}', start);
+      const block = styles.slice(start, end + 1);
+
+      assert.doesNotMatch(block, /var\(--day-badge-/);
+      assert.doesNotMatch(block, /var\(--dcc-day-badge-/);
+
+      start = end;
+    }
+
+    assert.equal(foundAny, true);
   }
+});
+
+test('legacy day_badge CSS variables are fully removed from styles', () => {
+  const card = makeCard({ entities: ['calendar.a'] });
+  const styles = card.getStyles();
+
+  assert.doesNotMatch(styles, /--day-badge-size/);
+  assert.doesNotMatch(styles, /--day-badge-font-size/);
+  assert.doesNotMatch(styles, /--day-badge-background/);
+  assert.doesNotMatch(styles, /--day-badge-color/);
 });
 
 test('empty day_badges config does not emit badge variables', () => {
