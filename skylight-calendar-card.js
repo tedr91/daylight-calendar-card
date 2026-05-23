@@ -3499,7 +3499,8 @@ class SkylightCalendarCard extends HTMLElement {
         display: flex;
         gap: 12px;
         align-items: center;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        min-width: 0;
       }
 
       .compact-header-controls {
@@ -3511,7 +3512,8 @@ class SkylightCalendarCard extends HTMLElement {
         display: flex;
         align-items: center;
         gap: 12px;
-        flex: 0 1 auto;
+        flex: 1 1 auto;
+        min-width: 0;
         margin-left: auto;
       }
 
