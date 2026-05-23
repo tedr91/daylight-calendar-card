@@ -1679,7 +1679,7 @@ class SkylightCalendarCard extends HTMLElement {
     if (!Array.isArray(rawRules)) return [];
 
     return rawRules
-      .map((rule) => {
+      .map((rule, index) => {
         if (!rule || typeof rule !== 'object') return null;
 
         const rawCondition = String(rule.condition || '').trim().toLowerCase();
@@ -1697,7 +1697,10 @@ class SkylightCalendarCard extends HTMLElement {
           return null;
         }
 
-        const normalized = { condition };
+        const numericPriority = Number(rule.priority);
+        const priority = Number.isFinite(numericPriority) ? numericPriority : 0;
+
+        const normalized = { condition, priority, index };
         if (isNegatedCondition) normalized.negate = true;
 
         if (condition === 'has_event' && (!rule.calendar || !String(rule.calendar).trim())) {
@@ -1819,7 +1822,7 @@ class SkylightCalendarCard extends HTMLElement {
     if (!Array.isArray(rawRules)) return [];
 
     return rawRules
-      .map((rule) => {
+      .map((rule, index) => {
         if (!rule || typeof rule !== 'object') return null;
         const conditions = this.normalizeDayBadgeConditions(rule.conditions);
         if (!conditions) return null;
@@ -2185,11 +2188,16 @@ class SkylightCalendarCard extends HTMLElement {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
-    let background = null;
-    let opacity = null;
-    let backgroundOpacity = null;
-    let borderColor = null;
-    let borderWidth = null;
+    const candidates = {};
+
+    const applyCandidate = (key, value, rule) => {
+      if (value === undefined || value === null) return;
+      const candidatePriority = Number.isFinite(rule.priority) ? rule.priority : 0;
+      const existing = candidates[key];
+      if (!existing || candidatePriority > existing.priority || (candidatePriority === existing.priority && rule.index < existing.ruleIndex)) {
+        candidates[key] = { value, priority: candidatePriority, ruleIndex: rule.index };
+      }
+    };
 
     rules.forEach((rule) => {
       let matches = false;
@@ -2214,28 +2222,23 @@ class SkylightCalendarCard extends HTMLElement {
 
       if (rule.background) {
         if (rule.background === 'auto' && matchedEvent?.color) {
-          background = matchedEvent.color;
+          applyCandidate('background', matchedEvent.color, rule);
         } else if (rule.background !== 'auto') {
-          background = rule.background;
+          applyCandidate('background', rule.background, rule);
         }
       }
 
-      if (rule.opacity !== undefined) {
-        opacity = rule.opacity;
-      }
-
-      if (rule.background_opacity !== undefined) {
-        backgroundOpacity = rule.background_opacity;
-      }
-
-      if (rule.border_color !== undefined) {
-        borderColor = rule.border_color;
-      }
-
-      if (rule.border_width !== undefined) {
-        borderWidth = rule.border_width;
-      }
+      applyCandidate('opacity', rule.opacity, rule);
+      applyCandidate('background_opacity', rule.background_opacity, rule);
+      applyCandidate('border_color', rule.border_color, rule);
+      applyCandidate('border_width', rule.border_width, rule);
     });
+
+    const background = candidates.background?.value ?? null;
+    const opacity = candidates.opacity?.value ?? null;
+    const backgroundOpacity = candidates.background_opacity?.value ?? null;
+    const borderColor = candidates.border_color?.value ?? null;
+    const borderWidth = candidates.border_width?.value ?? null;
 
     if (!background && opacity === null && backgroundOpacity === null && !borderColor && !borderWidth) return null;
     return {

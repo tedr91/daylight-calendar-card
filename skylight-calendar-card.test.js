@@ -872,6 +872,38 @@ test('day_styles evaluate today/weekend/has_event rules and auto background', ()
   assert.equal(style.border_width, '2px');
 });
 
+
+
+test('day_styles apply priority per field with tie-break by rule order', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    day_styles: [
+      { condition: 'today', priority: 1, background: '#111111', opacity: 0.2, border_color: '#222222' },
+      { condition: 'today', priority: 5, background: '#333333' },
+      { condition: 'today', priority: 5, background: '#444444' },
+      { condition: 'today', priority: 3, opacity: 0.8, border_color: '#999999', border_width: 4 }
+    ]
+  });
+
+  const style = card.getDayStyleConfig(new Date(), [], true);
+  assert.equal(style.background, '#333333');
+  assert.equal(style.opacity, 0.8);
+  assert.equal(style.border_color, '#999999');
+  assert.equal(style.border_width, '4px');
+});
+
+test('day_styles auto background also respects priority', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    day_styles: [
+      { condition: 'has_event', calendar: 'calendar.a', title_match: 'sync', priority: 1, background: 'auto' },
+      { condition: 'has_event', calendar: 'calendar.a', title_match: 'sync', priority: 9, background: '#abcdef' }
+    ]
+  });
+  const dayEvents = [{ entityId: 'calendar.a', color: '#123456', summary: 'Daily sync', start: { dateTime: '2026-05-01T09:00:00Z' }, end: { dateTime: '2026-05-01T09:30:00Z' } }];
+  const style = card.getDayStyleConfig(new Date('2026-05-01T00:00:00Z'), dayEvents, false);
+  assert.equal(style.background, '#abcdef');
+});
 test('virtual_calendars normalize and affect calendar token matching', () => {
   const card = makeCard({
     entities: ['calendar.a', 'calendar.b'],
