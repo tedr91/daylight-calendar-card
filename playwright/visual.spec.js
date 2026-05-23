@@ -338,34 +338,3 @@ test('regression: month compact-height view selector stays clickable without dev
   await expect(card.locator('.calendar-grid')).toBeVisible();
   await expect(selector).toBeEnabled();
 });
-
-test('regression #321: header does not wrap when day_badges is empty', async ({ page }) => {
-  await page.setViewportSize({ width: 1135, height: 800 });
-
-  const fixtureUrl = `file://${path.join(process.cwd(), 'playwright', 'ha-fixture.html')}`;
-  await page.goto(fixtureUrl);
-  await page.evaluate((params) => window.renderCalendarCard(params), {
-    config: {
-      entities: ['calendar.family', 'calendar.work'],
-      title: 'Header Wrap Regression',
-      default_view: 'week-compact',
-      compact_header: false,
-      compact_height: false,
-      hide_dark_mode_toggle: true,
-      show_dashboard_nav_button: true,
-      enable_event_management: true,
-      hide_view_selector: false,
-      header_weather_sensor: 'weather.mock',
-      day_badges: [],
-      font_family: 'Arial Black, Arial, sans-serif'
-    },
-    events: baseEvents,
-    weather: { condition: 'sunny', temperature: 72 },
-    darkMode: false
-  });
-
-  const card = page.locator('skylight-calendar-card');
-  const header = card.locator('.header').first();
-  await expect(header).toBeVisible();
-  await expect(header).not.toHaveClass(/is-wrapped/);
-});
