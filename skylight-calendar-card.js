@@ -3394,7 +3394,7 @@ class SkylightCalendarCard extends HTMLElement {
       }
 
       .calendar-badge-inline .calendar-badge-name {
-        font-size: var(--day-badge-font-size, 12px);
+        font-size: 12px;
       }
 
       .calendar-badge-inline .calendar-badge-person-state {
@@ -3735,7 +3735,7 @@ class SkylightCalendarCard extends HTMLElement {
         padding: 12px 8px;
         text-align: center;
         font-weight: 600;
-        font-size: var(--day-badge-font-size, 12px);
+        font-size: 12px;
         text-transform: uppercase;
         color: #6b7280;
         letter-spacing: 0.5px;
@@ -3821,22 +3821,22 @@ class SkylightCalendarCard extends HTMLElement {
       }
 
       .day-badge {
-        width: var(--day-badge-size, 30px);
-        height: var(--day-badge-size, 30px);
-        min-width: var(--day-badge-size, 30px);
+        width: var(--dcc-day-badge-size, 30px);
+        height: var(--dcc-day-badge-size, 30px);
+        min-width: var(--dcc-day-badge-size, 30px);
         border-radius: 999px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-size: var(--day-badge-font-size, 12px);
+        font-size: var(--dcc-day-badge-font-size, 12px);
         font-weight: 700;
         line-height: 1;
-        background: var(--day-badge-background, var(--primary-color));
-        color: var(--day-badge-color, var(--text-primary-color, #fff));
+        background: var(--dcc-day-badge-background, var(--primary-color));
+        color: var(--dcc-day-badge-color, var(--text-primary-color, #fff));
       }
 
       .day-badge ha-icon {
-        --mdc-icon-size: calc(var(--day-badge-size, 30px) * 0.53);
+        --mdc-icon-size: calc(var(--dcc-day-badge-size, 30px) * 0.53);
         color: inherit;
       }
 
@@ -3868,7 +3868,7 @@ class SkylightCalendarCard extends HTMLElement {
       }
 
       .month-day-forecast .forecast-temperatures {
-        font-size: var(--day-badge-font-size, 12px);
+        font-size: 12px;
         gap: 2px;
       }
 
@@ -4011,7 +4011,7 @@ class SkylightCalendarCard extends HTMLElement {
       }
 
       .week-day-name {
-        font-size: var(--day-badge-font-size, 12px);
+        font-size: 12px;
         font-weight: 600;
         text-transform: uppercase;
         color: #6b7280;
@@ -4174,7 +4174,7 @@ class SkylightCalendarCard extends HTMLElement {
       }
 
       .agenda-day-weekday {
-        font-size: var(--day-badge-font-size, 12px);
+        font-size: 12px;
         font-weight: 600;
         text-transform: uppercase;
         color: #6b7280;
@@ -4303,7 +4303,7 @@ class SkylightCalendarCard extends HTMLElement {
 
       .agenda-empty-day {
         color: #9ca3af;
-        font-size: var(--day-badge-font-size, 12px);
+        font-size: 12px;
         padding: 8px 0;
       }
 
@@ -4562,7 +4562,7 @@ class SkylightCalendarCard extends HTMLElement {
       }
 
       .week-standard-day-name {
-        font-size: var(--day-badge-font-size, 12px);
+        font-size: 12px;
         font-weight: 600;
         text-transform: uppercase;
         color: #6b7280;
@@ -7377,10 +7377,10 @@ class SkylightCalendarCard extends HTMLElement {
 
     const badgesHtml = badges.map((badge) => {
       const style = [
-        badge.background_color ? `--day-badge-background: ${badge.background_color};` : '',
-        badge.color ? `--day-badge-color: ${badge.color};` : '',
-        badge.size ? `--day-badge-size: ${badge.size};` : '',
-        badge.font_size ? `--day-badge-font-size: ${badge.font_size};` : ''
+        badge.background_color ? `--dcc-day-badge-background: ${badge.background_color};` : '',
+        badge.color ? `--dcc-day-badge-color: ${badge.color};` : '',
+        badge.size ? `--dcc-day-badge-size: ${badge.size};` : '',
+        badge.font_size ? `--dcc-day-badge-font-size: ${badge.font_size};` : ''
       ].join(' ');
       const content = badge.text
         ? `<span class="day-badge-text">${this.escapeHtml(badge.text)}</span>`

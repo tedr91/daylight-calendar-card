@@ -852,8 +852,61 @@ test('day_badges supports configurable size and font_size', () => {
   const card = makeCard({ entities: ['calendar.a'], day_badges: [{ conditions: { title: 'ballet' }, text: 'PL', size: 32, font_size: '14px' }] });
   const events = [{ entityId: 'calendar.a', summary: 'Ballet Practice', start: { dateTime: '2026-05-01T10:00:00Z' }, end: { dateTime: '2026-05-01T11:00:00Z' } }];
   const html = card.renderDayBadges(new Date('2026-05-01T00:00:00Z'), events);
-  assert.match(html, /--day-badge-size: 32px;/);
-  assert.match(html, /--day-badge-font-size: 14px;/);
+  assert.match(html, /--dcc-day-badge-size: 32px;/);
+  assert.match(html, /--dcc-day-badge-font-size: 14px;/);
+  assert.doesNotMatch(html, /--day-badge-size:/);
+  assert.doesNotMatch(html, /--day-badge-font-size:/);
+});
+
+test('day_badge CSS variables do not leak into non-badge selectors', () => {
+  const card = makeCard({ entities: ['calendar.a'] });
+  const styles = card.getStyles();
+  const leakingSelectors = [
+    '.day-header',
+    '.week-day-name',
+    '.agenda-day-weekday',
+    '.agenda-empty-day',
+    '.calendar-badge-name',
+    '.week-standard-day-name',
+    '.forecast-temperatures'
+  ];
+
+  for (const selector of leakingSelectors) {
+    let start = 0;
+    let foundAny = false;
+
+    while ((start = styles.indexOf(selector, start)) !== -1) {
+      foundAny = true;
+      const end = styles.indexOf('}', start);
+      const block = styles.slice(start, end + 1);
+
+      assert.doesNotMatch(block, /var\(--day-badge-/);
+      assert.doesNotMatch(block, /var\(--dcc-day-badge-/);
+
+      start = end;
+    }
+
+    assert.equal(foundAny, true);
+  }
+});
+
+test('legacy day_badge CSS variables are fully removed from styles', () => {
+  const card = makeCard({ entities: ['calendar.a'] });
+  const styles = card.getStyles();
+
+  assert.doesNotMatch(styles, /--day-badge-size/);
+  assert.doesNotMatch(styles, /--day-badge-font-size/);
+  assert.doesNotMatch(styles, /--day-badge-background/);
+  assert.doesNotMatch(styles, /--day-badge-color/);
+});
+
+test('empty day_badges config does not emit badge variables', () => {
+  const card = makeCard({ entities: ['calendar.a'], day_badges: [] });
+  const events = [{ entityId: 'calendar.a', summary: 'Ballet Practice', start: { dateTime: '2026-05-01T10:00:00Z' }, end: { dateTime: '2026-05-01T11:00:00Z' } }];
+  const html = card.renderDayBadges(new Date('2026-05-01T00:00:00Z'), events);
+  assert.equal(html, '');
+  assert.doesNotMatch(html, /--dcc-day-badge-/);
+  assert.doesNotMatch(html, /--day-badge-/);
 });
 test('day_styles evaluate today/weekend/has_event rules and auto background', () => {
   const card = makeCard({
