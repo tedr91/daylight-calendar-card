@@ -110,7 +110,7 @@ test('getStubConfig includes key configuration defaults', () => {
     'show_current_time_bar', 'show_event_location', 'use_short_location',
     'event_calendar_friendly_name', 'event_title_prefix', 'past_event_mode', 'event_color_mode',
     'event_neutral_background', 'event_tint_opacity', 'event_color_bar_width', 'combine_style',
-    'combine_background', 'hide_calendars', 'hide_year', 'hide_controls',
+    'combine_background', 'hide_calendars', 'hide_header', 'hide_year', 'hide_controls',
     'hide_navigation_buttons', 'hide_add_event_button', 'hide_view_selector',
     'hide_dark_mode_toggle', 'show_dashboard_nav_button', 'header_dashboard_path',
     'header_weather_sensor', 'calendar_person_entities', 'color_scheme', 'enable_event_management'
@@ -127,6 +127,7 @@ test('setConfig applies visual layout and styling options', () => {
     compact_header: true,
     hide_year: true,
     hide_calendars: true,
+    hide_header: true,
     hide_calendar_names: true,
     hide_controls: true,
     hide_navigation_buttons: true,
@@ -177,6 +178,7 @@ test('setConfig applies visual layout and styling options', () => {
   assert.equal(card._config.compact_header, true);
   assert.equal(card._config.hide_year, true);
   assert.equal(card._config.hide_calendars, true);
+  assert.equal(card._config.hide_header, true);
   assert.equal(card._config.hide_calendar_names, true);
   assert.equal(card._config.hide_controls, true);
   assert.equal(card._config.hide_navigation_buttons, true);
@@ -377,6 +379,16 @@ test('calendar render includes header controls and modal container', () => {
   assert.match(html, /id="next-period"/);
   assert.match(html, /id="today"/);
   assert.match(html, /id="event-modal"/);
+});
+
+test('hide_header removes the header wrapper entirely', () => {
+  const card = new Card();
+  card._hass = { states: {}, locale: { language: 'en' }, language: 'en', themes: { darkMode: false } };
+  card.setConfig({ entities: ['calendar.family'], hide_header: true });
+  originalCardRender.call(card);
+  const html = card._root.innerHTML;
+  assert.doesNotMatch(html, /class="header/);
+  assert.match(html, /class="calendar-body"/);
 });
 
 
