@@ -933,6 +933,16 @@ test('compact header wrapped state still forces full-width centered groups', () 
 
   assert.match(compactRule, /width:\s*100%/);
   assert.match(compactRule, /justify-content:\s*center/);
+
+  assert.match(styles, /\.header-compact\.is-wrapped\s*\{[^}]*align-items:\s*center/);
+  assert.match(styles, /\.header-compact\.is-wrapped\s*\{[^}]*justify-content:\s*center/);
+  assert.match(styles, /\.header-compact\.is-wrapped \.compact-header-left\s*\{[^}]*text-align:\s*center/);
+  assert.match(styles, /\.header-compact\.is-wrapped \.compact-header-left\s*\{[^}]*flex-wrap:\s*wrap/);
+  assert.match(styles, /\.header-compact\.is-wrapped \.header-title-wrap\s*\{[^}]*text-align:\s*center/);
+  assert.match(styles, /\.header-compact\.is-wrapped \.compact-header-controls\s*\{[^}]*row-gap:\s*12px/);
+  assert.match(styles, /\.header-compact\.is-wrapped \.compact-header-controls\s*\{[^}]*column-gap:\s*12px/);
+  assert.match(styles, /\.header-compact\.is-wrapped \.compact-period-controls\s*\{[^}]*flex-wrap:\s*wrap/);
+  assert.match(styles, /\.header-compact\.is-wrapped \.today-button,\s*\n\s*\.header-compact\.is-wrapped \.compact-add-event-button/);
 });
 
 test('issue 321 standard header wrapped state does not force full-width rows', () => {
@@ -955,27 +965,191 @@ test('issue 321 standard header wrapped state does not force full-width rows', (
   assert.doesNotMatch(standardRule, /width:\s*100%/);
 });
 
-test('shouldMarkWrappedFromChildren only marks wrapped when visible children occupy different rows', () => {
-  const card = makeCard({ entities: ['calendar.a'] });
-  const sameRowChildren = [
-    { offsetParent: {}, offsetTop: 10 },
-    { offsetParent: {}, offsetTop: 10 }
-  ];
-  const wrappedChildren = [
-    { offsetParent: {}, offsetTop: 10 },
-    { offsetParent: {}, offsetTop: 26 }
-  ];
-  const hiddenChildren = [
-    { offsetParent: null, offsetTop: 10 },
-    { offsetParent: null, offsetTop: 26 }
-  ];
+test('issue321 compact header width detection is deterministic', () => {
+  const card = makeCard({ entities: ['calendar.a'], compact_header: true });
+  const header = document.createElement('div');
+  const left = document.createElement('div');
+  const controls = document.createElement('div');
 
-  assert.equal(card.shouldMarkWrappedFromChildren(sameRowChildren), false);
-  assert.equal(card.shouldMarkWrappedFromChildren(wrappedChildren), true);
-  assert.equal(card.shouldMarkWrappedFromChildren(hiddenChildren), false);
+  Object.defineProperty(header, 'clientWidth', { configurable: true, value: 1000 });
+
+  const originalMeasure = card.measureNaturalGroupWidth;
+  const originalGetComputedStyle = window.getComputedStyle;
+  try {
+    card.measureNaturalGroupWidth = (group) => (group === left ? 300 : 400);
+    window.getComputedStyle = () => ({ columnGap: '16px', gap: '16px' });
+    assert.equal(card.shouldMarkHeaderWrappedFromWidth(header, left, controls), false);
+
+    Object.defineProperty(header, 'clientWidth', { configurable: true, value: 600 });
+    assert.equal(card.shouldMarkHeaderWrappedFromWidth(header, left, controls), true);
+  } finally {
+    card.measureNaturalGroupWidth = originalMeasure;
+    window.getComputedStyle = originalGetComputedStyle;
+  }
 });
 
-test('updateCompactHeaderWrapState uses natural unwrapped layout for compact header measurement', () => {
+test('issue321 standard header width detection is deterministic', () => {
+  const card = makeCard({ entities: ['calendar.a'], compact_header: false });
+  const header = document.createElement('div');
+  const left = document.createElement('div');
+  const controls = document.createElement('div');
+
+  Object.defineProperty(header, 'clientWidth', { configurable: true, value: 920 });
+
+  const originalMeasure = card.measureNaturalGroupWidth;
+  const originalGetComputedStyle = window.getComputedStyle;
+  try {
+    card.measureNaturalGroupWidth = (group) => (group === left ? 320 : 500);
+    window.getComputedStyle = () => ({ columnGap: '16px', gap: '16px' });
+    assert.equal(card.shouldMarkHeaderWrappedFromWidth(header, left, controls), false);
+
+    Object.defineProperty(header, 'clientWidth', { configurable: true, value: 780 });
+    assert.equal(card.shouldMarkHeaderWrappedFromWidth(header, left, controls), true);
+  } finally {
+    card.measureNaturalGroupWidth = originalMeasure;
+    window.getComputedStyle = originalGetComputedStyle;
+  }
+});
+
+
+test('issue321 controls wrap detection uses width-based helper', () => {
+  const card = makeCard({ entities: ['calendar.a'] });
+  const group = document.createElement('div');
+
+  Object.defineProperty(group, 'clientWidth', { configurable: true, value: 800 });
+
+  const originalMeasure = card.measureNaturalGroupWidth;
+  try {
+    card.measureNaturalGroupWidth = () => 616;
+    assert.equal(card.shouldMarkGroupWrappedFromWidth(group), false);
+
+    Object.defineProperty(group, 'clientWidth', { configurable: true, value: 500 });
+    assert.equal(card.shouldMarkGroupWrappedFromWidth(group), true);
+  } finally {
+    card.measureNaturalGroupWidth = originalMeasure;
+  }
+});
+
+test('header width detection uses content-box width excluding padding', () => {
+  const card = makeCard({ entities: ['calendar.a'] });
+  const header = document.createElement('div');
+  const left = document.createElement('div');
+  const controls = document.createElement('div');
+
+  Object.defineProperty(header, 'clientWidth', { configurable: true, value: 1000 });
+
+  const originalMeasure = card.measureNaturalGroupWidth;
+  const originalGetComputedStyle = window.getComputedStyle;
+  try {
+    card.measureNaturalGroupWidth = (group) => (group === left ? 480 : 460);
+    window.getComputedStyle = (element) => {
+      if (element === header) {
+        return {
+          columnGap: '16px',
+          gap: '16px',
+          paddingLeft: '24px',
+          paddingRight: '24px'
+        };
+      }
+
+      return {
+        columnGap: '0px',
+        gap: '0px',
+        paddingLeft: '0px',
+        paddingRight: '0px'
+      };
+    };
+
+    assert.equal(card.shouldMarkHeaderWrappedFromWidth(header, left, controls), true);
+  } finally {
+    card.measureNaturalGroupWidth = originalMeasure;
+    window.getComputedStyle = originalGetComputedStyle;
+  }
+});
+
+test('issue321 header width detection uses 2px tolerance to avoid flicker', () => {
+  const card = makeCard({ entities: ['calendar.a'] });
+  const header = document.createElement('div');
+  const left = document.createElement('div');
+  const controls = document.createElement('div');
+
+  Object.defineProperty(header, 'clientWidth', { configurable: true, value: 800 });
+
+  const originalMeasure = card.measureNaturalGroupWidth;
+  const originalGetComputedStyle = window.getComputedStyle;
+  try {
+    let leftWidth = 400;
+    let controlsWidth = 385;
+    card.measureNaturalGroupWidth = (group) => (group === left ? leftWidth : controlsWidth);
+    window.getComputedStyle = () => ({ columnGap: '16px', gap: '16px' });
+
+    assert.equal(card.shouldMarkHeaderWrappedFromWidth(header, left, controls), false);
+
+    controlsWidth = 389;
+    assert.equal(card.shouldMarkHeaderWrappedFromWidth(header, left, controls), true);
+  } finally {
+    card.measureNaturalGroupWidth = originalMeasure;
+    window.getComputedStyle = originalGetComputedStyle;
+  }
+});
+
+test('measureNaturalGroupWidth includes child horizontal margins', () => {
+  const card = makeCard({ entities: ['calendar.a'] });
+
+  const childOne = {
+    offsetParent: {},
+    getBoundingClientRect: () => ({ width: 90 })
+  };
+
+  const childTwo = {
+    offsetParent: {},
+    getBoundingClientRect: () => ({ width: 85 })
+  };
+
+  const group = {
+    children: [childOne, childTwo],
+    scrollWidth: 120
+  };
+
+  const originalGetComputedStyle = window.getComputedStyle;
+  try {
+    window.getComputedStyle = (element) => {
+      if (element === group) {
+        return {
+          columnGap: '10px',
+          gap: '10px',
+          marginLeft: '0px',
+          marginRight: '0px'
+        };
+      }
+
+      if (element === childOne) {
+        return {
+          marginLeft: '4px',
+          marginRight: '6px'
+        };
+      }
+
+      if (element === childTwo) {
+        return {
+          marginLeft: '8px',
+          marginRight: '2px'
+        };
+      }
+
+      return {
+        marginLeft: '0px',
+        marginRight: '0px'
+      };
+    };
+
+    assert.equal(card.measureNaturalGroupWidth(group), 205);
+  } finally {
+    window.getComputedStyle = originalGetComputedStyle;
+  }
+});
+
+test('updateCompactHeaderWrapState keeps header single-row after delayed updates when widths fit', () => {
   const card = makeCard({ entities: ['calendar.a'], compact_header: true });
   const header = {
     classList: {
@@ -985,28 +1159,59 @@ test('updateCompactHeaderWrapState uses natural unwrapped layout for compact hea
       contains(name) { return this._set.has(name); }
     },
     querySelector(sel) {
-      if (sel === '.compact-header-left') return { offsetParent: {}, offsetTop: 20 };
-      if (sel === '.compact-header-controls') return { offsetParent: {}, offsetTop: 20 };
+      if (sel === '.compact-header-left') return left;
+      if (sel === '.compact-header-controls') return controls;
       return null;
     }
   };
-  const compactControls = {
+  const left = { scrollWidth: 300 };
+  const controls = {
+    scrollWidth: 400,
     children: [{ offsetParent: {}, offsetTop: 20 }, { offsetParent: {}, offsetTop: 20 }],
     classList: { remove() {}, toggle() {} }
   };
+  Object.defineProperty(header, 'clientWidth', { configurable: true, value: 1000 });
+
   const badges = { children: [], classList: { remove() {}, toggle() {} } };
   card._root = {
     querySelector(sel) {
       if (sel === '.header-compact') return header;
-      if (sel === '.compact-header-controls') return compactControls;
+      if (sel === '.compact-header-controls') return controls;
       if (sel === '.calendar-badges-inline') return badges;
       if (sel === '.header-controls') return null;
       return null;
     }
   };
 
-  card.measureAndApplyHeaderWrapState();
-  assert.equal(header.classList.contains('is-wrapped'), false);
+  const callbacks = new Map();
+  let rafId = 0;
+  const originalRaf = window.requestAnimationFrame;
+  const originalCancel = window.cancelAnimationFrame;
+  const originalGetComputedStyle = window.getComputedStyle;
+  const originalMeasure = card.measureNaturalGroupWidth;
+  try {
+    card.measureNaturalGroupWidth = (group) => (group === left ? 300 : 400);
+    window.getComputedStyle = () => ({ columnGap: '16px', gap: '16px' });
+    window.requestAnimationFrame = (cb) => {
+      rafId += 1;
+      callbacks.set(rafId, cb);
+      return rafId;
+    };
+    window.cancelAnimationFrame = (id) => { callbacks.delete(id); };
+
+    card.updateCompactHeaderWrapState();
+    const first = callbacks.get(1);
+    first();
+    const second = callbacks.get(2);
+    second();
+
+    assert.equal(header.classList.contains('is-wrapped'), false);
+  } finally {
+    window.requestAnimationFrame = originalRaf;
+    window.cancelAnimationFrame = originalCancel;
+    window.getComputedStyle = originalGetComputedStyle;
+    card.measureNaturalGroupWidth = originalMeasure;
+  }
 });
 
 test('repeated updateCompactHeaderWrapState calls cancel previous pending RAFs', () => {

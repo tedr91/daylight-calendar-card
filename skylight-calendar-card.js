@@ -1151,6 +1151,78 @@ class SkylightCalendarCard extends HTMLElement {
     return visibleChildren.some((child) => Math.abs(child.offsetTop - firstTop) > 1);
   }
 
+
+
+  getElementContentWidth(element) {
+    if (!element) return 0;
+
+    const computed = window.getComputedStyle(element);
+    const paddingLeft = parseFloat(computed.paddingLeft) || 0;
+    const paddingRight = parseFloat(computed.paddingRight) || 0;
+
+    return Math.max(0, element.clientWidth - paddingLeft - paddingRight);
+  }
+
+  getOuterWidth(element) {
+    if (!element) return 0;
+
+    const rect = element.getBoundingClientRect();
+    const computed = window.getComputedStyle(element);
+    const marginLeft = parseFloat(computed.marginLeft) || 0;
+    const marginRight = parseFloat(computed.marginRight) || 0;
+
+    return rect.width + marginLeft + marginRight;
+  }
+
+  measureNaturalGroupWidth(group) {
+    if (!group) return 0;
+
+    const computed = window.getComputedStyle(group);
+    const children = Array.from(group.children || [])
+      .filter((child) => child.offsetParent !== null);
+
+    if (!children.length) {
+      return Math.ceil(group.scrollWidth || 0);
+    }
+
+    const childWidths = children.reduce((sum, child) => {
+      return sum + this.getOuterWidth(child);
+    }, 0);
+
+    const internalGap = parseFloat(computed.columnGap)
+      || parseFloat(computed.gap)
+      || 0;
+
+    return Math.ceil(childWidths + internalGap * Math.max(children.length - 1, 0));
+  }
+
+  shouldMarkHeaderWrappedFromWidth(header, leftGroup, controlsGroup) {
+    if (!header || !leftGroup || !controlsGroup) return false;
+
+    const computedStyle = window.getComputedStyle(header);
+    const gap = parseFloat(computedStyle.columnGap)
+      || parseFloat(computedStyle.gap)
+      || 0;
+    const requiredWidth = this.measureNaturalGroupWidth(leftGroup)
+      + this.measureNaturalGroupWidth(controlsGroup)
+      + gap;
+    const availableWidth = this.getElementContentWidth(header);
+    const tolerance = 2;
+
+    return requiredWidth > (availableWidth + tolerance);
+  }
+
+
+  shouldMarkGroupWrappedFromWidth(group) {
+    if (!group) return false;
+
+    const requiredWidth = this.measureNaturalGroupWidth(group);
+    const availableWidth = this.getElementContentWidth(group);
+    const tolerance = 2;
+
+    return requiredWidth > (availableWidth + tolerance);
+  }
+
   measureAndApplyHeaderWrapState() {
     if (!this._root) return;
 
@@ -1168,14 +1240,17 @@ class SkylightCalendarCard extends HTMLElement {
     badges?.classList.remove('is-wrapped');
 
     if (header) {
-      const headerChildren = this._config.compact_header
-        ? [header.querySelector('.compact-header-left'), header.querySelector('.compact-header-controls')]
-        : [header.querySelector('.header-left'), header.querySelector('.header-controls')];
-      header.classList.toggle('is-wrapped', this.shouldMarkWrappedFromChildren(headerChildren.filter(Boolean)));
+      const leftGroup = this._config.compact_header
+        ? header.querySelector('.compact-header-left')
+        : header.querySelector('.header-left');
+      const controlsGroup = this._config.compact_header
+        ? header.querySelector('.compact-header-controls')
+        : header.querySelector('.header-controls');
+      header.classList.toggle('is-wrapped', this.shouldMarkHeaderWrappedFromWidth(header, leftGroup, controlsGroup));
     }
 
     if (controls) {
-      controls.classList.toggle('is-wrapped', this.shouldMarkWrappedFromChildren(Array.from(controls.children)));
+      controls.classList.toggle('is-wrapped', this.shouldMarkGroupWrappedFromWidth(controls));
     }
 
     if (this._config.compact_header && badges) {
@@ -3373,7 +3448,47 @@ class SkylightCalendarCard extends HTMLElement {
       .header-compact.is-wrapped .compact-header-controls {
         width: 100%;
         justify-content: center;
+        align-items: center;
       }
+
+      .header-compact.is-wrapped {
+        align-items: center;
+        justify-content: center;
+      }
+
+      .header-compact.is-wrapped .compact-header-left {
+        justify-content: center;
+        text-align: center;
+        flex-wrap: wrap;
+      }
+
+      .header-compact.is-wrapped .header-title-wrap {
+        justify-content: center;
+        text-align: center;
+      }
+
+      .header-compact.is-wrapped .compact-header-controls {
+        justify-content: center;
+        flex-wrap: wrap;
+        row-gap: 12px;
+        column-gap: 12px;
+      }
+
+      .header-compact.is-wrapped .compact-period-controls {
+        margin-left: 0;
+        justify-content: center;
+        flex-wrap: wrap;
+        width: auto;
+      }
+
+      .header-compact.is-wrapped .today-button,
+      .header-compact.is-wrapped .compact-add-event-button,
+      .header-compact.is-wrapped .view-mode-select,
+      .header-compact.is-wrapped .nav-button {
+        padding-left: 12px;
+        padding-right: 12px;
+      }
+
 
       .header.is-wrapped .header-left,
       .header.is-wrapped .header-controls {

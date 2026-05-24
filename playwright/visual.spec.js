@@ -235,6 +235,17 @@ async function headerGroupsShareRow(left, controls) {
   );
 }
 
+
+async function centerOffsetWithinTolerance(container, child, tolerance = 12) {
+  const containerBox = await container.boundingBox();
+  const childBox = await child.boundingBox();
+  if (!containerBox || !childBox) return false;
+
+  const containerCenter = containerBox.x + containerBox.width / 2;
+  const childCenter = childBox.x + childBox.width / 2;
+  return Math.abs(containerCenter - childCenter) <= tolerance;
+}
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((now) => {
     const OriginalDate = Date;
@@ -394,6 +405,50 @@ test('regression issue 321: compact header stays single-row', async ({ page }) =
   await expect.poll(async () => {
     return headerGroupsShareRow(left, controls);
   }).toBe(true);
+});
+
+
+test('regression issue 321: compact wrapped header rows stay centered at medium width', async ({ page }) => {
+  await page.setViewportSize({ width: 980, height: 820 });
+  const fixtureUrl = `file://${path.join(process.cwd(), 'playwright', 'ha-fixture.html')}`;
+  await page.goto(fixtureUrl);
+  await page.evaluate((params) => window.renderCalendarCard(params), {
+    config: {
+      entities: ['calendar.family', 'calendar.work'],
+      title: 'Issue 321 Compact Wrapped',
+      default_view: 'week-compact',
+      compact_header: true,
+      compact_height: false,
+      hide_dark_mode_toggle: true,
+      show_dashboard_nav_button: true,
+      header_weather_sensor: 'weather.mock',
+      enable_event_management: true,
+      hide_view_selector: false,
+      day_badges: [],
+      uix: { style: '.nav-button,.today-button,.add-event-button,.view-mode-select{font-size:18px!important;}' }
+    },
+    events: baseEvents,
+    weather: { 'weather.mock': { temperature: 72, condition: 'sunny' } },
+    darkMode: false
+  });
+
+  const card = page.locator('skylight-calendar-card');
+  const header = card.locator('.header-compact');
+  const left = card.locator('.compact-header-left').first();
+  const controls = card.locator('.compact-header-controls').first();
+
+  await expect(header).toBeVisible();
+  await expect(left).toBeVisible();
+  await expect(controls).toBeVisible();
+
+  await expect.poll(async () => {
+    const wrapped = await header.evaluate((el) => el.classList.contains('is-wrapped'));
+    return wrapped;
+  }).toBe(true);
+
+  await expect.poll(async () => headerGroupsShareRow(left, controls)).toBe(false);
+  await expect.poll(async () => centerOffsetWithinTolerance(header, left)).toBe(true);
+  await expect.poll(async () => centerOffsetWithinTolerance(header, controls)).toBe(true);
 });
 
 test('regression issue 321: standard header stays single-row', async ({ page }) => {
