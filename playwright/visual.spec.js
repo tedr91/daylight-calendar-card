@@ -339,7 +339,7 @@ test('regression: month compact-height view selector stays clickable without dev
   await expect(selector).toBeEnabled();
 });
 
-test('regression issue 321: compact header stays single-row in wide layout when naturally unwrapped', async ({ page }) => {
+test('regression issue 321: compact header stays single-row', async ({ page }) => {
   await page.setViewportSize({ width: 1360, height: 820 });
   const fixtureUrl = `file://${path.join(process.cwd(), 'playwright', 'ha-fixture.html')}`;
   await page.goto(fixtureUrl);
@@ -382,7 +382,7 @@ test('regression issue 321: compact header stays single-row in wide layout when 
   }).toBeLessThan(2);
 });
 
-test('regression issue 321: standard header stays single-row in wide layout when naturally unwrapped', async ({ page }) => {
+test('regression issue 321: standard header stays single-row', async ({ page }) => {
   await page.setViewportSize({ width: 1360, height: 820 });
   const fixtureUrl = `file://${path.join(process.cwd(), 'playwright', 'ha-fixture.html')}`;
   await page.goto(fixtureUrl);
