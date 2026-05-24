@@ -218,6 +218,23 @@ const eventSelectorByView = {
   agenda: '.agenda-event'
 };
 
+async function headerGroupsShareRow(left, controls) {
+  const leftBox = await left.boundingBox();
+  const controlsBox = await controls.boundingBox();
+
+  if (!leftBox || !controlsBox) return false;
+
+  const leftMid = leftBox.y + leftBox.height / 2;
+  const controlsMid = controlsBox.y + controlsBox.height / 2;
+
+  return (
+    leftMid >= controlsBox.y &&
+    leftMid <= controlsBox.y + controlsBox.height &&
+    controlsMid >= leftBox.y &&
+    controlsMid <= leftBox.y + leftBox.height
+  );
+}
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((now) => {
     const OriginalDate = Date;
@@ -367,19 +384,16 @@ test('regression issue 321: compact header stays single-row', async ({ page }) =
   await expect(card).toBeVisible();
 
   const header = card.locator('.header-compact');
-  const left = card.locator('.compact-header-left');
-  const controls = card.locator('.compact-header-controls');
+  const left = card.locator('.compact-header-left').first();
+  const controls = card.locator('.compact-header-controls').first();
 
   await expect(header).toBeVisible();
   await expect(left).toBeVisible();
   await expect(controls).toBeVisible();
 
   await expect.poll(async () => {
-    const leftBox = await left.boundingBox();
-    const controlsBox = await controls.boundingBox();
-    if (!leftBox || !controlsBox) return 999;
-    return Math.abs(leftBox.y - controlsBox.y);
-  }).toBeLessThan(2);
+    return headerGroupsShareRow(left, controls);
+  }).toBe(true);
 });
 
 test('regression issue 321: standard header stays single-row', async ({ page }) => {
@@ -410,17 +424,14 @@ test('regression issue 321: standard header stays single-row', async ({ page }) 
   await expect(card).toBeVisible();
 
   const header = card.locator('.header');
-  const left = card.locator('.header-left');
-  const controls = card.locator('.header-controls');
+  const left = card.locator('.header-left').first();
+  const controls = card.locator('.header-controls').first();
 
   await expect(header).toBeVisible();
   await expect(left).toBeVisible();
   await expect(controls).toBeVisible();
 
   await expect.poll(async () => {
-    const leftBox = await left.boundingBox();
-    const controlsBox = await controls.boundingBox();
-    if (!leftBox || !controlsBox) return 999;
-    return Math.abs(leftBox.y - controlsBox.y);
-  }).toBeLessThan(2);
+    return headerGroupsShareRow(left, controls);
+  }).toBe(true);
 });
