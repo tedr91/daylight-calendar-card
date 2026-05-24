@@ -942,7 +942,7 @@ test('compact header wrapped state still forces full-width centered groups', () 
   assert.match(styles, /\.header-compact\.is-wrapped \.compact-header-controls\s*\{[^}]*row-gap:\s*12px/);
   assert.match(styles, /\.header-compact\.is-wrapped \.compact-header-controls\s*\{[^}]*column-gap:\s*12px/);
   assert.match(styles, /\.header-compact\.is-wrapped \.compact-period-controls\s*\{[^}]*flex-wrap:\s*wrap/);
-  assert.match(styles, /\.header-compact\.is-wrapped \.today-button,\s*\n\s*\.header-compact\.is-wrapped \.add-event-button/);
+  assert.match(styles, /\.header-compact\.is-wrapped \.today-button,\s*\n\s*\.header-compact\.is-wrapped \.compact-add-event-button/);
 });
 
 test('issue 321 standard header wrapped state does not force full-width rows', () => {

@@ -3482,7 +3482,7 @@ class SkylightCalendarCard extends HTMLElement {
       }
 
       .header-compact.is-wrapped .today-button,
-      .header-compact.is-wrapped .add-event-button,
+      .header-compact.is-wrapped .compact-add-event-button,
       .header-compact.is-wrapped .view-mode-select,
       .header-compact.is-wrapped .nav-button {
         padding-left: 12px;
