@@ -912,6 +912,7 @@ class SkylightCalendarCard extends HTMLElement {
     this._wrapMeasureRaf1 = null;
     this._wrapMeasureRaf2 = null;
     this._monthGridResizeObserver = null;
+    this._headerResizeObserver = null;
     this._monthCompactMeasurementDirty = true;
     this._lastCompactMonthViewportHeight = null;
     this._handleViewportResize = () => {
@@ -2898,6 +2899,10 @@ class SkylightCalendarCard extends HTMLElement {
       this._monthGridResizeObserver.disconnect();
       this._monthGridResizeObserver = null;
     }
+    if (this._headerResizeObserver) {
+      this._headerResizeObserver.disconnect();
+      this._headerResizeObserver = null;
+    }
     this.detachSystemThemeListener();
     this.teardownWeatherForecastSubscription();
     if (this._modalVisibilityObserver) {
@@ -3017,6 +3022,25 @@ class SkylightCalendarCard extends HTMLElement {
       this.updateMonthContainerTopInViewportFromDom();
       this._monthCompactMeasurementDirty = false;
     });
+  }
+
+
+  observeHeaderResize() {
+    if (!this._root || typeof window.ResizeObserver !== 'function') return;
+
+    if (this._headerResizeObserver) {
+      this._headerResizeObserver.disconnect();
+      this._headerResizeObserver = null;
+    }
+
+    const headerSelector = this._config.compact_header ? '.header-compact' : '.header';
+    const header = this._root.querySelector(headerSelector);
+    if (!header) return;
+
+    this._headerResizeObserver = new window.ResizeObserver(() => {
+      this.updateCompactHeaderWrapState();
+    });
+    this._headerResizeObserver.observe(header);
   }
 
   observeMonthGridResize() {
@@ -6059,6 +6083,7 @@ class SkylightCalendarCard extends HTMLElement {
     this.updateCompactHeaderWrapState();
     this.updateCalendarBadgesScrollState();
     this.updateWeekStandardFixedOffsetHeightFromDom();
+    this.observeHeaderResize();
     this.observeMonthGridResize();
     if (this._viewMode === 'month' && this._config.compact_height && !this.shouldShowAllEventsInMonth()) {
       if (this._monthContainerTopInViewport === null) {
