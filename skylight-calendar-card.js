@@ -1152,6 +1152,28 @@ class SkylightCalendarCard extends HTMLElement {
   }
 
 
+
+  getElementContentWidth(element) {
+    if (!element) return 0;
+
+    const computed = window.getComputedStyle(element);
+    const paddingLeft = parseFloat(computed.paddingLeft) || 0;
+    const paddingRight = parseFloat(computed.paddingRight) || 0;
+
+    return Math.max(0, element.clientWidth - paddingLeft - paddingRight);
+  }
+
+  getOuterWidth(element) {
+    if (!element) return 0;
+
+    const rect = element.getBoundingClientRect();
+    const computed = window.getComputedStyle(element);
+    const marginLeft = parseFloat(computed.marginLeft) || 0;
+    const marginRight = parseFloat(computed.marginRight) || 0;
+
+    return rect.width + marginLeft + marginRight;
+  }
+
   measureNaturalGroupWidth(group) {
     if (!group) return 0;
 
@@ -1164,8 +1186,7 @@ class SkylightCalendarCard extends HTMLElement {
     }
 
     const childWidths = children.reduce((sum, child) => {
-      const rect = child.getBoundingClientRect();
-      return sum + rect.width;
+      return sum + this.getOuterWidth(child);
     }, 0);
 
     const internalGap = parseFloat(computed.columnGap)
@@ -1185,7 +1206,7 @@ class SkylightCalendarCard extends HTMLElement {
     const requiredWidth = this.measureNaturalGroupWidth(leftGroup)
       + this.measureNaturalGroupWidth(controlsGroup)
       + gap;
-    const availableWidth = header.clientWidth;
+    const availableWidth = this.getElementContentWidth(header);
     const tolerance = 2;
 
     return requiredWidth > (availableWidth + tolerance);
@@ -1196,7 +1217,7 @@ class SkylightCalendarCard extends HTMLElement {
     if (!group) return false;
 
     const requiredWidth = this.measureNaturalGroupWidth(group);
-    const availableWidth = group.clientWidth;
+    const availableWidth = this.getElementContentWidth(group);
     const tolerance = 2;
 
     return requiredWidth > (availableWidth + tolerance);

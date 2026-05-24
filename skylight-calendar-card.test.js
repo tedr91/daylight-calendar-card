@@ -1030,6 +1030,43 @@ test('issue321 controls wrap detection uses width-based helper', () => {
   }
 });
 
+test('header width detection uses content-box width excluding padding', () => {
+  const card = makeCard({ entities: ['calendar.a'] });
+  const header = document.createElement('div');
+  const left = document.createElement('div');
+  const controls = document.createElement('div');
+
+  Object.defineProperty(header, 'clientWidth', { configurable: true, value: 1000 });
+
+  const originalMeasure = card.measureNaturalGroupWidth;
+  const originalGetComputedStyle = window.getComputedStyle;
+  try {
+    card.measureNaturalGroupWidth = (group) => (group === left ? 480 : 460);
+    window.getComputedStyle = (element) => {
+      if (element === header) {
+        return {
+          columnGap: '16px',
+          gap: '16px',
+          paddingLeft: '24px',
+          paddingRight: '24px'
+        };
+      }
+
+      return {
+        columnGap: '0px',
+        gap: '0px',
+        paddingLeft: '0px',
+        paddingRight: '0px'
+      };
+    };
+
+    assert.equal(card.shouldMarkHeaderWrappedFromWidth(header, left, controls), true);
+  } finally {
+    card.measureNaturalGroupWidth = originalMeasure;
+    window.getComputedStyle = originalGetComputedStyle;
+  }
+});
+
 test('issue321 header width detection uses 2px tolerance to avoid flicker', () => {
   const card = makeCard({ entities: ['calendar.a'] });
   const header = document.createElement('div');
@@ -1056,18 +1093,57 @@ test('issue321 header width detection uses 2px tolerance to avoid flicker', () =
   }
 });
 
-test('measureNaturalGroupWidth estimates one-line width when flex children are wrapped', () => {
+test('measureNaturalGroupWidth includes child horizontal margins', () => {
   const card = makeCard({ entities: ['calendar.a'] });
-  const childOne = { offsetParent: {}, getBoundingClientRect: () => ({ width: 90 }) };
-  const childTwo = { offsetParent: {}, getBoundingClientRect: () => ({ width: 85 }) };
-  const group = { children: [childOne, childTwo], scrollWidth: 120 };
+
+  const childOne = {
+    offsetParent: {},
+    getBoundingClientRect: () => ({ width: 90 })
+  };
+
+  const childTwo = {
+    offsetParent: {},
+    getBoundingClientRect: () => ({ width: 85 })
+  };
+
+  const group = {
+    children: [childOne, childTwo],
+    scrollWidth: 120
+  };
 
   const originalGetComputedStyle = window.getComputedStyle;
   try {
-    window.getComputedStyle = () => ({ columnGap: '10px', gap: '10px' });
-    const measured = card.measureNaturalGroupWidth(group);
-    assert.equal(measured, 185);
-    assert.ok(measured > group.scrollWidth);
+    window.getComputedStyle = (element) => {
+      if (element === group) {
+        return {
+          columnGap: '10px',
+          gap: '10px',
+          marginLeft: '0px',
+          marginRight: '0px'
+        };
+      }
+
+      if (element === childOne) {
+        return {
+          marginLeft: '4px',
+          marginRight: '6px'
+        };
+      }
+
+      if (element === childTwo) {
+        return {
+          marginLeft: '8px',
+          marginRight: '2px'
+        };
+      }
+
+      return {
+        marginLeft: '0px',
+        marginRight: '0px'
+      };
+    };
+
+    assert.equal(card.measureNaturalGroupWidth(group), 205);
   } finally {
     window.getComputedStyle = originalGetComputedStyle;
   }
