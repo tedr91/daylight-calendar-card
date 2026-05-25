@@ -7,6 +7,16 @@
 // 3. Copy the strings from 'en' and translate each value
 // ============================================================================
 
+const DAYLIGHT_CALENDAR_CARD_VERSION = '__DAYLIGHT_CALENDAR_CARD_VERSION__';
+
+function getDaylightCalendarCardVersion() {
+  return DAYLIGHT_CALENDAR_CARD_VERSION.includes('__')
+    ? 'dev'
+    : DAYLIGHT_CALENDAR_CARD_VERSION;
+}
+
+console.info(`Daylight Calendar Card ${getDaylightCalendarCardVersion()} loaded from skylight-calendar-card.js`);
+
 const TRANSLATIONS = {
   en: {
     locale: 'en-US',
@@ -12251,6 +12261,13 @@ class SkylightCalendarCardEditor extends HTMLElement {
       </div>
     `);
 
+    const diagnosticsSection = this.renderSection('About / Diagnostics', `
+      <p class="helper">Daylight Calendar Card</p>
+      <p class="helper">Loaded version: ${this.escapeHtml(getDaylightCalendarCardVersion())}</p>
+      <p class="helper">Resource file: skylight-calendar-card.js</p>
+      <p class="helper">If this version does not match the version shown in HACS, Home Assistant may be loading a cached or stale resource.</p>
+    `);
+
     this.innerHTML = `
       <style>
         .card-config {
@@ -12625,6 +12642,7 @@ class SkylightCalendarCardEditor extends HTMLElement {
         ${eventSection}
         ${managementSection}
         ${localeSection}
+        ${diagnosticsSection}
       </div>
       ${this.renderColorPickerDialog()}
     `;
