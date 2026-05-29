@@ -14,12 +14,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Inject card version
-        run: |
-          VERSION="${GITHUB_REF_NAME}"
-          ESCAPED_VERSION="$(printf '%s' "$VERSION" | sed -e 's/[\/&]/\\&/g')"
-          sed -i "s/__DAYLIGHT_CALENDAR_CARD_VERSION__/${ESCAPED_VERSION}/g" skylight-calendar-card.js
-
       - name: Upload skylight-calendar-card.js to release
         uses: softprops/action-gh-release@v2
         with:

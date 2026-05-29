@@ -1,0 +1,117 @@
+name: Publish HACS Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  models: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Read card version
+        id: version
+        run: |
+          VERSION="$(grep -oE "DAYLIGHT_CALENDAR_CARD_VERSION = '[^']+'" skylight-calendar-card.js | sed -E "s/.*'([^']+)'.*/\1/")"
+
+          echo "Detected version: $VERSION"
+
+          if [ -z "$VERSION" ] || [ "$VERSION" = "dev" ] || echo "$VERSION" | grep -q "__"; then
+            echo "ERROR: Invalid DAYLIGHT_CALENDAR_CARD_VERSION"
+            exit 1
+          fi
+
+          if ! echo "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "ERROR: Version must look like v1.2.3"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag does not already exist
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          if git ls-remote --tags origin "refs/tags/$VERSION" | grep -q "$VERSION"; then
+            echo "ERROR: Tag $VERSION already exists"
+            exit 1
+          fi
+
+      - name: Generate GitHub release notes
+        id: generated_notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/releases/generate-notes" \
+            -f tag_name="$VERSION" \
+            -f target_commitish="main" \
+            > generated-release-notes.json
+
+          jq -r '.name' generated-release-notes.json > release-title.txt
+          jq -r '.body' generated-release-notes.json > generated-release-notes.md
+
+      - name: Build AI prompt
+        run: |
+          cat > ai-release-prompt.md <<'EOF_PROMPT'
+          Rewrite the following GitHub generated release notes for a Home Assistant HACS custom dashboard card called daylight-calendar-card.
+
+          Requirements:
+          - Keep it accurate. Do not invent features, bug fixes, breaking changes, or links.
+          - Preserve PR numbers, contributor mentions, and important configuration keys.
+          - Make it more user-friendly for HACS users.
+          - Call out breaking changes or migration notes if the generated notes clearly imply them.
+          - Use concise Markdown.
+          - Prefer headings like:
+            ## Highlights
+            ## Fixes
+            ## Maintenance
+            ## Full changelog
+          - If there are only a few changes, keep the notes short.
+          - Do not include marketing fluff.
+          - Do not mention that AI rewrote the notes.
+
+          Generated release notes:
+          EOF_PROMPT
+
+          cat generated-release-notes.md >> ai-release-prompt.md
+
+      - name: Spiffy release notes with AI
+        id: ai_notes
+        uses: actions/ai-inference@v1
+        with:
+          model: openai/gpt-4o
+          prompt-file: ai-release-prompt.md
+          max-completion-tokens: 2000
+
+      - name: Save AI release notes
+        run: |
+          cat "${{ steps.ai_notes.outputs.response-file }}" > RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "---" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "_Generated from GitHub release notes. Please verify before publishing if this is a draft._" >> RELEASE_NOTES.md
+
+      - name: Create draft GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TITLE="$(cat release-title.txt)"
+
+          gh release create "$VERSION" \
+            --target main \
+            --title "$TITLE" \
+            --notes-file RELEASE_NOTES.md \
+            --draft
