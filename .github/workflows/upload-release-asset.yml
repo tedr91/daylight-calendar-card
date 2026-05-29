@@ -1,4 +1,4 @@
-name: Upload release asset
+name: Attach JS release asset for download metrics
 
 on:
   release:
@@ -13,6 +13,26 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Validate release asset version
+        run: |
+          if grep -q "__DAYLIGHT_CALENDAR_CARD_VERSION__" skylight-calendar-card.js; then
+            echo "ERROR: skylight-calendar-card.js still contains the version placeholder"
+            exit 1
+          fi
+
+          VERSION="$(grep -oE "DAYLIGHT_CALENDAR_CARD_VERSION = '[^']+'" skylight-calendar-card.js | sed -E "s/.*'([^']+)'.*/\1/")"
+          echo "Detected version: $VERSION"
+
+          if [ -z "$VERSION" ] || [ "$VERSION" = "dev" ]; then
+            echo "ERROR: Invalid DAYLIGHT_CALENDAR_CARD_VERSION"
+            exit 1
+          fi
+
+          if ! echo "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "ERROR: Version must look like v1.2.3"
+            exit 1
+          fi
 
       - name: Upload skylight-calendar-card.js to release
         uses: softprops/action-gh-release@v2

@@ -1,5 +1,10 @@
 name: Publish HACS Release
 
+# Release process:
+# - DAYLIGHT_CALENDAR_CARD_VERSION must be committed in skylight-calendar-card.js before release.
+# - Open a release-prep PR that bumps the version, merge it to protected main,
+#   then run this manual workflow from main.
+# - This workflow intentionally fails if the source still contains the version placeholder.
 on:
   workflow_dispatch:
 
