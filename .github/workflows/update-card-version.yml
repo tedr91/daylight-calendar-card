@@ -1,0 +1,92 @@
+name: Update Card Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version to write, for example v1.2.3 or v1.2.3-beta0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Validate requested version
+        id: version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          VERSION="$REQUESTED_VERSION"
+
+          if ! echo "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$'; then
+            echo "ERROR: Version must look like v1.2.3 or v1.2.3-beta0"
+            exit 1
+          fi
+
+          if git ls-remote --tags origin "refs/tags/$VERSION" | grep -q "$VERSION"; then
+            echo "ERROR: Tag $VERSION already exists"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Update DAYLIGHT_CALENDAR_CARD_VERSION
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          perl -0pi -e "s/const DAYLIGHT_CALENDAR_CARD_VERSION = '[^']+';/const DAYLIGHT_CALENDAR_CARD_VERSION = '$VERSION';/" skylight-calendar-card.js
+
+          DETECTED_VERSION="$(grep -oE "DAYLIGHT_CALENDAR_CARD_VERSION = '[^']+'" skylight-calendar-card.js | sed -E "s/.*'([^']+)'.*/\1/")"
+          echo "Detected version: $DETECTED_VERSION"
+
+          if [ "$DETECTED_VERSION" != "$VERSION" ]; then
+            echo "ERROR: Failed to update DAYLIGHT_CALENDAR_CARD_VERSION"
+            exit 1
+          fi
+
+          if echo "$DETECTED_VERSION" | grep -q "__" || [ "$DETECTED_VERSION" = "dev" ]; then
+            echo "ERROR: Invalid DAYLIGHT_CALENDAR_CARD_VERSION"
+            exit 1
+          fi
+
+      - name: Verify release staging checks
+        run: |
+          VERSION="$(grep -oE "DAYLIGHT_CALENDAR_CARD_VERSION = '[^']+'" skylight-calendar-card.js | sed -E "s/.*'([^']+)'.*/\1/")"
+
+          echo "Detected version: $VERSION"
+
+          if [ -z "$VERSION" ] || [ "$VERSION" = "dev" ] || echo "$VERSION" | grep -q "__"; then
+            echo "ERROR: Invalid DAYLIGHT_CALENDAR_CARD_VERSION"
+            exit 1
+          fi
+
+          if ! echo "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$'; then
+            echo "ERROR: Version must look like v1.2.3 or v1.2.3-beta0"
+            exit 1
+          fi
+
+      - name: Create release prep pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: release-prep/${{ steps.version.outputs.version }}
+          base: main
+          delete-branch: true
+          title: Prepare release ${{ steps.version.outputs.version }}
+          commit-message: Prepare release ${{ steps.version.outputs.version }}
+          body: |
+            Updates `DAYLIGHT_CALENDAR_CARD_VERSION` to `${{ steps.version.outputs.version }}`.
+
+            This workflow validated the version string and the same source checks used by the release staging workflow before opening this PR.
+          add-paths: |
+            skylight-calendar-card.js
