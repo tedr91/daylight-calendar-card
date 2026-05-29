@@ -113,7 +113,7 @@ test('getStubConfig includes key configuration defaults', () => {
     'combine_background', 'hide_calendars', 'hide_header', 'hide_year', 'hide_controls',
     'hide_navigation_buttons', 'hide_add_event_button', 'hide_view_selector',
     'hide_dark_mode_toggle', 'show_dashboard_nav_button', 'header_dashboard_path',
-    'header_weather_sensor', 'calendar_person_entities', 'color_scheme', 'enable_event_management'
+    'header_weather_sensor', 'calendar_person_entities', 'default_hidden_calendars', 'color_scheme', 'enable_event_management'
   ];
   for (const key of requiredKeys) assert.ok(key in stub, `${key} should exist`);
 });
@@ -167,6 +167,7 @@ test('setConfig applies visual layout and styling options', () => {
     colors: { 'calendar.family': '#f00' },
     event_font_colors: { 'calendar.family': '#0f0' },
     hide_badge_calendars: ['calendar.family'],
+    default_hidden_calendars: ['calendar.family'],
     virtual_calendars: [{ name: 'home', icon: 'mdi:house', entities: ['calendar.family'] }],
     day_styles: [{ when: { day_of_week: [1] }, style: { background: '#111' } }],
     event_styles: [{ when: { title_contains: 'Meeting' }, style: { color: '#222' } }]
@@ -218,7 +219,56 @@ test('setConfig applies visual layout and styling options', () => {
   assert.equal(card._config.colors['calendar.family'], '#f00');
   assert.equal(card._config.event_font_colors['calendar.family'], '#0f0');
   assert.deepEqual(card._config.hide_badge_calendars, ['calendar.family']);
+  assert.deepEqual(card._config.default_hidden_calendars, ['calendar.family']);
+  assert.equal(card._hiddenCalendars.has('calendar.family'), true);
   assert.equal(card._config.virtual_calendars[0].name, 'home');
+});
+
+test('default_hidden_calendars initializes hidden calendar badges', () => {
+  const card = makeCard({
+    entities: ['calendar.family', 'calendar.work'],
+    default_hidden_calendars: ['calendar.work', 'calendar.unknown']
+  });
+
+  assert.deepEqual(card._config.default_hidden_calendars, ['calendar.work']);
+  assert.equal(card._hiddenCalendars.has('calendar.family'), false);
+  assert.equal(card._hiddenCalendars.has('calendar.work'), true);
+});
+
+test('default calendar visibility map can show or hide individual calendars', () => {
+  const card = makeCard({
+    entities: ['calendar.family', 'calendar.work', 'calendar.school'],
+    default_hidden_calendars: ['calendar.school'],
+    default_calendar_visibility: {
+      'calendar.family': 'hide',
+      'calendar.work': false,
+      'calendar.school': 'show'
+    }
+  });
+
+  assert.deepEqual(card._config.default_hidden_calendars.sort(), ['calendar.family', 'calendar.work']);
+  assert.equal(card._hiddenCalendars.has('calendar.family'), true);
+  assert.equal(card._hiddenCalendars.has('calendar.work'), true);
+  assert.equal(card._hiddenCalendars.has('calendar.school'), false);
+});
+
+test('persisted calendar visibility overrides configured hidden defaults', () => {
+  const originalLocalStorage = window.localStorage;
+  window.localStorage = {
+    getItem: () => JSON.stringify({ hiddenCalendars: [] }),
+    setItem: () => {}
+  };
+
+  try {
+    const card = makeCard({
+      entities: ['calendar.family', 'calendar.work'],
+      default_hidden_calendars: ['calendar.work']
+    });
+
+    assert.equal(card._hiddenCalendars.has('calendar.work'), false);
+  } finally {
+    window.localStorage = originalLocalStorage;
+  }
 });
 
 test('setConfig normalizes fallback values and aliases', () => {

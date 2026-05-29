@@ -1105,23 +1105,57 @@ class SkylightCalendarCard extends HTMLElement {
     this._systemThemeMediaQuery = null;
   }
 
+  getDefaultHiddenCalendarSet() {
+    const knownEntities = new Set(this._config.entities || []);
+    return new Set((this._config.default_hidden_calendars || []).filter((entityId) => knownEntities.has(entityId)));
+  }
+
+  normalizeDefaultHiddenCalendars(config = {}) {
+    const knownEntities = new Set(Array.isArray(config.entities) ? config.entities : []);
+    const hiddenCalendars = new Set();
+
+    if (Array.isArray(config.default_hidden_calendars)) {
+      config.default_hidden_calendars.forEach((entityId) => {
+        if (knownEntities.has(entityId)) hiddenCalendars.add(entityId);
+      });
+    }
+
+    const visibilityMap = config.default_calendar_visibility || config.calendar_visibility || {};
+    if (visibilityMap && typeof visibilityMap === 'object' && !Array.isArray(visibilityMap)) {
+      Object.entries(visibilityMap).forEach(([entityId, value]) => {
+        if (!knownEntities.has(entityId)) return;
+        const normalizedValue = typeof value === 'string' ? value.trim().toLowerCase() : value;
+        if (normalizedValue === false || normalizedValue === 'hide' || normalizedValue === 'hidden' || normalizedValue === 'off') {
+          hiddenCalendars.add(entityId);
+        } else if (normalizedValue === true || normalizedValue === 'show' || normalizedValue === 'shown' || normalizedValue === 'visible' || normalizedValue === 'on') {
+          hiddenCalendars.delete(entityId);
+        }
+      });
+    }
+
+    return Array.from(hiddenCalendars);
+  }
+
   loadPersistedPreferences() {
     const storageKey = this.getPreferenceStorageKey();
-    if (!storageKey) return;
+    if (!storageKey) return false;
 
     try {
       const raw = window.localStorage?.getItem(storageKey);
-      if (!raw) return;
+      if (!raw) return false;
 
       const parsed = JSON.parse(raw);
 
       if (Array.isArray(parsed.hiddenCalendars)) {
         const knownEntities = new Set(this._config.entities || []);
         this._hiddenCalendars = new Set(parsed.hiddenCalendars.filter((entityId) => knownEntities.has(entityId)));
+        return true;
       }
     } catch (error) {
       console.warn('Failed to load persisted calendar preferences:', error);
     }
+
+    return false;
   }
 
   persistPreferences() {
@@ -1299,7 +1333,6 @@ class SkylightCalendarCard extends HTMLElement {
     }
     const language = resolveLanguage(config.language || this._hass?.language || this._hass?.locale?.language);
     this._hasCustomTitle = config.title !== undefined && config.title !== null;
-    const previousHiddenCalendars = new Set(this._hiddenCalendars);
     const normalizedDefaultView = config.default_view === 'week'
       ? 'week-compact'
       : config.default_view === 'schedule'
@@ -1347,6 +1380,7 @@ class SkylightCalendarCard extends HTMLElement {
       ? rawEventBarWidth
       : normalizedCombineWidth;
     const normalizedCalendarPersonEntities = this.normalizeEntityStringMap(config.calendar_person_entities || {});
+    const normalizedDefaultHiddenCalendars = this.normalizeDefaultHiddenCalendars(config);
 
     this._config = {
       title: this._hasCustomTitle ? config.title : translate(language, 'defaultTitle'),
@@ -1431,6 +1465,7 @@ class SkylightCalendarCard extends HTMLElement {
       enable_event_management: config.enable_event_management !== false, // Enable create/edit/delete
       readonly_calendars: config.readonly_calendars || [], // Calendars that should not allow modifications
       hide_badge_calendars: config.hide_badge_calendars || [], // Calendars whose badges should be hidden from the header
+      default_hidden_calendars: normalizedDefaultHiddenCalendars, // Calendars hidden by default until a user toggles/persists visibility
       virtual_calendars: this.normalizeVirtualCalendars(config.virtual_calendars || []), // Virtual badges mapping to one or more real calendars
       language: config.language || null, // Language code for translations (e.g., 'en', 'de', 'fr')
       locale: config.locale || null, // Locale override for date/time formatting (e.g., 'en-US')
@@ -1454,6 +1489,7 @@ class SkylightCalendarCard extends HTMLElement {
         ? config.header_weather_sensor.trim()
         : null,
       calendar_person_entities: normalizedCalendarPersonEntities,
+      default_hidden_calendars: normalizedDefaultHiddenCalendars,
       agenda_compact_events: config.agenda_compact_events ?? false,
       rolling_days_agenda: config.rolling_days_agenda ?? null,
       event_styles: normalizedEventStyles,
@@ -1470,9 +1506,7 @@ class SkylightCalendarCard extends HTMLElement {
     }
     this._viewMode = this._config.default_view;
     this.applyThemeMode(this._config.color_scheme);
-    this._hiddenCalendars = new Set(
-      Array.from(previousHiddenCalendars).filter((entityId) => this._config.entities.includes(entityId))
-    );
+    this._hiddenCalendars = this.getDefaultHiddenCalendarSet();
     this.loadPersistedPreferences();
     this._loadedEventRange = null;
     this._calendarDataSignatures = {};
@@ -11333,6 +11367,7 @@ class SkylightCalendarCard extends HTMLElement {
       header_dashboard_path: null,
       header_weather_sensor: '',
       calendar_person_entities: {},
+      default_hidden_calendars: [],
       color_scheme: 'auto',
       enable_event_management: true
     };
@@ -12228,6 +12263,7 @@ class SkylightCalendarCardEditor extends HTMLElement {
       </div>
       ${this.renderSubSection('Read-only calendars', `<div class="list-checkbox-grid">${this.renderCalendarListCheckboxes('readonly_calendars', { label: 'read-only calendars' })}</div>`)}
       ${this.renderSubSection('Hide header badges for calendars', `<div class="list-checkbox-grid">${this.renderCalendarListCheckboxes('hide_badge_calendars', { label: 'hidden header badges calendars' })}</div>`)}
+      ${this.renderSubSection('Calendars hidden by default', `<div class="list-checkbox-grid">${this.renderCalendarListCheckboxes('default_hidden_calendars', { label: 'calendars hidden by default' })}</div>`)}
     `);
 
     const localeSection = this.renderSection('Localization & preferences', `
