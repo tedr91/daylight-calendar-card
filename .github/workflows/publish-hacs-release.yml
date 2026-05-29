@@ -33,8 +33,8 @@ jobs:
             exit 1
           fi
 
-          if ! echo "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "ERROR: Version must look like v1.2.3"
+          if ! echo "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$'; then
+            echo "ERROR: Version must look like v1.2.3 or v1.2.3-beta0"
             exit 1
           fi
 
@@ -115,8 +115,14 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           TITLE="$(cat release-title.txt)"
 
+          PRERELEASE_ARGS=()
+          if [[ "$VERSION" == *-* ]]; then
+            PRERELEASE_ARGS+=(--prerelease)
+          fi
+
           gh release create "$VERSION" \
             --target main \
             --title "$TITLE" \
             --notes-file RELEASE_NOTES.md \
-            --draft
+            --draft \
+            "${PRERELEASE_ARGS[@]}"
