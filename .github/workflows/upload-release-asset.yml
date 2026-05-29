@@ -1,4 +1,4 @@
-name: Upload release asset
+name: Attach JS release asset for download metrics
 
 on:
   release:
@@ -14,11 +14,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Inject card version
+      - name: Report release asset version
         run: |
-          VERSION="${GITHUB_REF_NAME}"
-          ESCAPED_VERSION="$(printf '%s' "$VERSION" | sed -e 's/[\/&]/\\&/g')"
-          sed -i "s/__DAYLIGHT_CALENDAR_CARD_VERSION__/${ESCAPED_VERSION}/g" skylight-calendar-card.js
+          if grep -q "__DAYLIGHT_CALENDAR_CARD_VERSION__" skylight-calendar-card.js; then
+            echo "::warning::skylight-calendar-card.js still contains the version placeholder"
+          fi
+
+          VERSION="$(grep -oE "DAYLIGHT_CALENDAR_CARD_VERSION = '[^']+'" skylight-calendar-card.js | sed -E "s/.*'([^']+)'.*/\1/")"
+          echo "Detected version: $VERSION"
+
+          if [ -z "$VERSION" ] || [ "$VERSION" = "dev" ]; then
+            echo "::warning::Invalid DAYLIGHT_CALENDAR_CARD_VERSION"
+          elif ! echo "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$'; then
+            echo "::warning::Version should look like v1.2.3 or v1.2.3-beta0"
+          fi
 
       - name: Upload skylight-calendar-card.js to release
         uses: softprops/action-gh-release@v2
