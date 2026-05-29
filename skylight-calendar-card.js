@@ -7,7 +7,7 @@
 // 3. Copy the strings from 'en' and translate each value
 // ============================================================================
 
-const DAYLIGHT_CALENDAR_CARD_VERSION = '__DAYLIGHT_CALENDAR_CARD_VERSION__';
+const DAYLIGHT_CALENDAR_CARD_VERSION = 'v4.4.0';
 
 function getDaylightCalendarCardVersion() {
   return DAYLIGHT_CALENDAR_CARD_VERSION.includes('__')
