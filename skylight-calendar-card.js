@@ -1409,6 +1409,7 @@ class SkylightCalendarCard extends HTMLElement {
       past_event_mode: normalizedPastEventMode, // Past-ended event handling: none, hide, or muted
       hide_empty_days: config.hide_empty_days || false, // Agenda view: hide day rows that do not contain any visible events
       agenda_compact_events: config.agenda_compact_events ?? false, // Agenda view: render title + time on one row with compact spacing
+      shorten_event_times: config.shorten_event_times ?? false, // Shorten event time labels in calendar views
       disable_swipe_controls: config.disable_swipe_controls ?? false, // Disable left/right swipe period navigation
       week_start_hour: normalizedWeekStartHour, // Start hour for week-standard view
       week_end_hour: normalizedWeekEndHour, // End hour for week-standard view
@@ -6766,7 +6767,7 @@ class SkylightCalendarCard extends HTMLElement {
               const { segmentStart, segmentEnd, isAllDaySegment } = daySegment;
               const timeLabel = isAllDaySegment
                 ? this.t('allDay')
-                : `${this.formatTime(segmentStart)} - ${this.formatTime(segmentEnd)}`;
+                : this.formatEventTimeRange(segmentStart, segmentEnd);
               const eventStyle = this.getEventStyle(event);
               const eventAgendaMinHeight = this.shouldShowCombinedCornerBubbles(event)
                 ? `calc(${agendaEventMinHeight} + 16px)`
@@ -7126,7 +7127,7 @@ class SkylightCalendarCard extends HTMLElement {
              style="top: ${top}px; height: ${height}px; width: ${width}; left: ${left}; ${eventStyle} --event-bubble-font-size: ${this.getEventBubbleFontSize(event)}; --event-time-font-size: ${this.getEventTimeFontSize(event)}; --event-location-font-size: ${this.getEventLocationFontSize(event)}; --event-bubble-text-color: ${this.getEventBubbleFontColor(event)};"
              data-event='${JSON.stringify(event).replace(/'/g, "&#39;")}'>
           <div class="week-standard-event-title">${this.renderEventTitleWithPrefix(event, displayTitle || event.summary || this.t('untitledEvent'))}</div>
-          ${this.shouldShowEventTime(event) ? `<div class="week-standard-event-time">${this.formatScheduleTime(eventStart)} - ${this.formatScheduleTime(eventEnd)}</div>` : ''}
+          ${this.shouldShowEventTime(event) ? `<div class="week-standard-event-time">${this.formatEventTimeRange(eventStart, eventEnd)}</div>` : ''}
           ${this.shouldShowEventLocation(event) ? `<div class="week-standard-event-location">📍 ${this.escapeHtml(this.getDisplayLocation(event.location, event))}</div>` : ''}
           ${this.renderEventIcon(event)}
           ${this.renderCombinedCornerBubbles(event)}
@@ -7480,6 +7481,72 @@ class SkylightCalendarCard extends HTMLElement {
     return new Intl.DateTimeFormat(this.getLocale(), this.getTimeFormatOptions()).format(date);
   }
 
+  uses24HourEventTime() {
+    const formatter = new Intl.DateTimeFormat(this.getLocale(), this.getTimeFormatOptions());
+    return formatter.resolvedOptions().hour12 === false;
+  }
+
+  isWholeHour(date) {
+    return date.getMinutes() === 0 && date.getSeconds() === 0 && date.getMilliseconds() === 0;
+  }
+
+  formatLocalizedHour(date) {
+    return new Intl.NumberFormat(this.getLocale(), { useGrouping: false }).format(date.getHours());
+  }
+
+  formatShort12HourEventTime(date) {
+    if (!this.isWholeHour(date)) {
+      return this.formatTime(date);
+    }
+
+    const formatter = new Intl.DateTimeFormat(this.getLocale(), this.getTimeFormatOptions());
+    const parts = formatter.formatToParts(date);
+    const minuteIndex = parts.findIndex((part) => part.type === 'minute');
+    const shortenedParts = parts.filter((part, index) => {
+      if (part.type === 'minute') return false;
+      return !(part.type === 'literal' && index === minuteIndex - 1);
+    });
+    return shortenedParts.map((part) => part.value).join('').replace(/\s+/g, ' ').trim();
+  }
+
+  formatShort24HourEventTime(date, { appendHourSuffix = true, omitWholeHourMinutes = true } = {}) {
+    if (this.isWholeHour(date) && omitWholeHourMinutes) {
+      return `${this.formatLocalizedHour(date)}${appendHourSuffix ? 'h' : ''}`;
+    }
+
+    return this.formatTime(date);
+  }
+
+  formatEventTime(date) {
+    if (!this._config?.shorten_event_times) {
+      return this.formatTime(date);
+    }
+
+    if (this.uses24HourEventTime()) {
+      return this.formatShort24HourEventTime(date);
+    }
+
+    return this.formatShort12HourEventTime(date);
+  }
+
+  formatEventTimeRange(startDate, endDate) {
+    if (!this._config?.shorten_event_times) {
+      return `${this.formatTime(startDate)} - ${this.formatTime(endDate)}`;
+    }
+
+    if (!this.uses24HourEventTime()) {
+      return `${this.formatShort12HourEventTime(startDate)} - ${this.formatShort12HourEventTime(endDate)}`;
+    }
+
+    const startWholeHour = this.isWholeHour(startDate);
+    const endWholeHour = this.isWholeHour(endDate);
+    if (startWholeHour && endWholeHour) {
+      return `${this.formatShort24HourEventTime(startDate, { appendHourSuffix: false })}-${this.formatShort24HourEventTime(endDate)}`;
+    }
+
+    return `${this.formatShort24HourEventTime(startDate, { appendHourSuffix: false })}-${this.formatShort24HourEventTime(endDate, { appendHourSuffix: endWholeHour })}`;
+  }
+
   getMonthWeekRowCount() {
     if (this._config.rolling_weeks !== null && this._viewMode === 'month') {
       return this._config.rolling_weeks + 1;
@@ -7806,7 +7873,7 @@ class SkylightCalendarCard extends HTMLElement {
     const { segmentStart, segmentEnd, isAllDaySegment } = daySegment;
     const timeLabel = isAllDaySegment
       ? this.t('allDay')
-      : `${this.formatTime(segmentStart)} - ${this.formatTime(segmentEnd)}`;
+      : this.formatEventTimeRange(segmentStart, segmentEnd);
     const eventStyle = this.getEventStyle(event);
 
     return `
@@ -7827,7 +7894,7 @@ class SkylightCalendarCard extends HTMLElement {
 
     return `
       <div class="event" style="${eventStyle}; --event-bubble-font-size: ${this.getEventBubbleFontSize(event)}; --event-time-font-size: ${this.getEventTimeFontSize(event)}; --event-bubble-text-color: ${this.getEventBubbleFontColor(event)};" data-event='${JSON.stringify(event).replace(/'/g, "&#39;")}'>
-        ${!isAllDaySegment && this.shouldShowEventTime(event) ? `<span class="event-time">${this.formatTime(segmentStart)}</span>` : ''}
+        ${!isAllDaySegment && this.shouldShowEventTime(event) ? `<span class="event-time">${this.formatEventTime(segmentStart)}</span>` : ''}
         ${this.renderEventTitleWithPrefix(event, event.summary || this.t('untitledEvent'))}
         ${this.renderCombinedCornerBubbles(event)}
       </div>
@@ -8321,7 +8388,7 @@ class SkylightCalendarCard extends HTMLElement {
       displayTitle: shouldIncludeStartTime
         ? this.t('eventTitleWithStartTime', {
             title: displayTitle,
-            time: this.formatScheduleTime(eventStart)
+            time: this.formatEventTime(eventStart)
           })
         : displayTitle
     };
@@ -10625,13 +10692,13 @@ class SkylightCalendarCard extends HTMLElement {
         <div class="modal-row">
           <div class="modal-label">📅 ${this.t('start')}</div>
           <div class="modal-value">
-            ${this.formatDate(startDate)}${!isAllDay ? ` ${this.t('at')} ${this.formatTime(startDate)}` : ` (${this.t('allDay')})`}
+            ${this.formatDate(startDate)}${!isAllDay ? ` ${this.t('at')} ${this.formatEventTime(startDate)}` : ` (${this.t('allDay')})`}
           </div>
         </div>
         <div class="modal-row">
           <div class="modal-label">🏁 ${this.t('end')}</div>
           <div class="modal-value">
-            ${this.formatDate(endDate)}${!isAllDay ? ` ${this.t('at')} ${this.formatTime(endDate)}` : ` (${this.t('allDay')})`}
+            ${this.formatDate(endDate)}${!isAllDay ? ` ${this.t('at')} ${this.formatEventTime(endDate)}` : ` (${this.t('allDay')})`}
           </div>
         </div>
         ${!isAllDay ? `
@@ -10760,7 +10827,7 @@ class SkylightCalendarCard extends HTMLElement {
               const daySegment = this.getEventDaySegment(event, date);
               if (!daySegment) return '';
               const { segmentStart, isAllDaySegment } = daySegment;
-              const timeLabel = isAllDaySegment ? this.t('allDay') : this.formatTime(segmentStart);
+              const timeLabel = isAllDaySegment ? this.t('allDay') : this.formatEventTime(segmentStart);
               const eventStyle = this.getEventStyle(event);
               return `
                 <div class="week-compact-event" style="${eventStyle} --event-bubble-font-size: ${this.getEventBubbleFontSize(event)}; --event-time-font-size: ${this.getEventTimeFontSize(event)}; --event-location-font-size: ${this.getEventLocationFontSize(event)}; --event-bubble-text-color: ${this.getEventBubbleFontColor(event)};" data-event='${JSON.stringify(event).replace(/'/g, "&#39;")}'>
@@ -10814,7 +10881,7 @@ class SkylightCalendarCard extends HTMLElement {
           return `
             <div class="day-event day-modal-event" style="${eventStyle} --event-bubble-font-size: ${this.getEventBubbleFontSize(event)}; --event-time-font-size: ${this.getEventTimeFontSize(event)}; --event-location-font-size: ${this.getEventLocationFontSize(event)}; --event-bubble-text-color: ${this.getEventBubbleFontColor(event)};" data-event='${JSON.stringify(event).replace(/'/g, "&#39;")}'>
               <div class="day-modal-event-title">${this.renderEventTitleWithPrefix(event, event.summary || this.t('untitledEvent'))}</div>
-              ${this.shouldShowEventTime(event) ? `<div class="day-modal-event-meta">${isAllDaySegment ? this.t('allDay') : `${this.formatTime(segmentStart)} - ${this.formatTime(segmentEnd)}`}</div>` : ''}
+              ${this.shouldShowEventTime(event) ? `<div class="day-modal-event-meta">${isAllDaySegment ? this.t('allDay') : this.formatEventTimeRange(segmentStart, segmentEnd)}</div>` : ''}
               ${this.shouldShowEventLocation(event) ? `<div class="day-modal-event-location">📍 ${this.escapeHtml(this.getDisplayLocation(event.location, event))}</div>` : ''}
               ${this.renderCombinedCornerBubbles(event)}
             </div>
@@ -11524,6 +11591,7 @@ class SkylightCalendarCard extends HTMLElement {
       show_all_details_month: false,
       hide_empty_days: false,
       agenda_compact_events: false,
+      shorten_event_times: false,
       compact_width: false,
       show_current_time_bar: false,
       show_event_location: false,
@@ -12400,6 +12468,7 @@ class SkylightCalendarCardEditor extends HTMLElement {
       <div class="boolean-list">
         <label><input type="checkbox" data-field="show_current_time_bar" ${this._config.show_current_time_bar ? 'checked' : ''}> Show current time bar</label>
         <label><input type="checkbox" data-field="use_24hr_schedule" ${this._config.use_24hr_schedule ? 'checked' : ''}> Use 24-hour schedule time</label>
+        <label><input type="checkbox" data-field="shorten_event_times" ${this._config.shorten_event_times ? 'checked' : ''}> Shorten event times</label>
         <label><input type="checkbox" data-field="show_event_location" ${this._config.show_event_location ? 'checked' : ''}> Show event location</label>
         <label><input type="checkbox" data-field="use_short_location" ${this._config.use_short_location ? 'checked' : ''}> Shorten event location in views</label>
         <label><input type="checkbox" data-field="combine_calendars" ${this._config.combine_calendars ? 'checked' : ''}> Combine duplicate events across calendars</label>
