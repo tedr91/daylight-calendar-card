@@ -147,6 +147,7 @@ Full documentation is available in the wiki:
 * Use multiple calendars for a shared family dashboard
 * Pair with wall-mounted tablets for a Daylight-style experience
 * Combine with UIX/Card Mod for advanced styling
+* In Home Assistant Sections view, put `grid_options.rows` directly on the `custom:daylight-calendar-card` / `custom:skylight-calendar-card` card for reliable row sizing. Stacked layouts such as `vertical-stack` may also need the stack or wrapper card to participate in height distribution before children can fill the allocated rows.
 
 ---
 
