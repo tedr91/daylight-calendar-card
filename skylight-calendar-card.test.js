@@ -1065,6 +1065,32 @@ test('getCompactContainerStyle uses grid-aware percentage height inside constrai
   }
 });
 
+
+test('getCompactContainerStyle honors stylesheet-defined parent height', () => {
+  const card = makeCard({ entities: ['calendar.a'], compact_height: true });
+  const parent = {
+    style: {},
+    getAttribute: () => '',
+    getBoundingClientRect: () => ({ width: 320, height: 480 }),
+    hasAttribute: () => false,
+    classList: { contains: () => false }
+  };
+  card.parentElement = parent;
+  card.getBoundingClientRect = () => ({ width: 320, height: 480 });
+
+  const originalGetComputedStyle = window.getComputedStyle;
+  try {
+    window.getComputedStyle = (element) => element === parent
+      ? { height: '480px', maxHeight: 'none', display: 'block', overflowY: 'visible', overflow: 'visible' }
+      : originalGetComputedStyle(element);
+
+    assert.equal(card.hasFixedHeightParentAllocation(), true);
+    assert.equal(card.getCompactContainerStyle(720), 'height: 100%; min-height: 0; overflow-y: auto;');
+  } finally {
+    window.getComputedStyle = originalGetComputedStyle;
+  }
+});
+
 test('getCompactContainerStyle preserves viewport fallback without constrained parent', () => {
   const card = makeCard({ entities: ['calendar.a'], compact_height: true });
   card.parentElement = null;
