@@ -7127,7 +7127,7 @@ class SkylightCalendarCard extends HTMLElement {
              style="top: ${top}px; height: ${height}px; width: ${width}; left: ${left}; ${eventStyle} --event-bubble-font-size: ${this.getEventBubbleFontSize(event)}; --event-time-font-size: ${this.getEventTimeFontSize(event)}; --event-location-font-size: ${this.getEventLocationFontSize(event)}; --event-bubble-text-color: ${this.getEventBubbleFontColor(event)};"
              data-event='${JSON.stringify(event).replace(/'/g, "&#39;")}'>
           <div class="week-standard-event-title">${this.renderEventTitleWithPrefix(event, displayTitle || event.summary || this.t('untitledEvent'))}</div>
-          ${this.shouldShowEventTime(event) ? `<div class="week-standard-event-time">${this.formatEventTimeRange(eventStart, eventEnd)}</div>` : ''}
+          ${this.shouldShowEventTime(event) ? `<div class="week-standard-event-time">${this.formatEventTimeRange(eventStart, eventEnd, { schedule: true })}</div>` : ''}
           ${this.shouldShowEventLocation(event) ? `<div class="week-standard-event-location">📍 ${this.escapeHtml(this.getDisplayLocation(event.location, event))}</div>` : ''}
           ${this.renderEventIcon(event)}
           ${this.renderCombinedCornerBubbles(event)}
@@ -7500,9 +7500,9 @@ class SkylightCalendarCard extends HTMLElement {
     return new Intl.NumberFormat(this.getLocale(), { useGrouping: false }).format(date.getHours());
   }
 
-  formatShort12HourEventTime(date) {
+  formatShort12HourEventTime(date, options = {}) {
     if (!this.isWholeHour(date)) {
-      return this.formatTime(date);
+      return this.formatBaseEventTime(date, options);
     }
 
     const formatter = new Intl.DateTimeFormat(this.getLocale(), this.getTimeFormatOptions());
@@ -7515,42 +7515,46 @@ class SkylightCalendarCard extends HTMLElement {
     return shortenedParts.map((part) => part.value).join('').replace(/\s+/g, ' ').trim();
   }
 
-  formatShort24HourEventTime(date, { appendHourSuffix = true, omitWholeHourMinutes = true } = {}) {
+  formatShort24HourEventTime(date, { appendHourSuffix = true, omitWholeHourMinutes = true, schedule = false } = {}) {
     if (this.isWholeHour(date) && omitWholeHourMinutes) {
       return `${this.formatLocalizedHour(date)}${appendHourSuffix ? 'h' : ''}`;
     }
 
-    return this.formatTime(date);
+    return this.formatBaseEventTime(date, { schedule });
   }
 
-  formatEventTime(date) {
+  formatBaseEventTime(date, { schedule = false } = {}) {
+    return schedule ? this.formatScheduleTime(date) : this.formatTime(date);
+  }
+
+  formatEventTime(date, options = {}) {
     if (!this._config?.shorten_event_times) {
-      return this.formatTime(date);
+      return this.formatBaseEventTime(date, options);
     }
 
     if (this.uses24HourEventTime()) {
-      return this.formatShort24HourEventTime(date);
+      return this.formatShort24HourEventTime(date, options);
     }
 
-    return this.formatShort12HourEventTime(date);
+    return this.formatShort12HourEventTime(date, options);
   }
 
-  formatEventTimeRange(startDate, endDate) {
+  formatEventTimeRange(startDate, endDate, options = {}) {
     if (!this._config?.shorten_event_times) {
-      return `${this.formatTime(startDate)} - ${this.formatTime(endDate)}`;
+      return `${this.formatBaseEventTime(startDate, options)} - ${this.formatBaseEventTime(endDate, options)}`;
     }
 
     if (!this.uses24HourEventTime()) {
-      return `${this.formatShort12HourEventTime(startDate)} - ${this.formatShort12HourEventTime(endDate)}`;
+      return `${this.formatShort12HourEventTime(startDate, options)} - ${this.formatShort12HourEventTime(endDate, options)}`;
     }
 
     const startWholeHour = this.isWholeHour(startDate);
     const endWholeHour = this.isWholeHour(endDate);
     if (startWholeHour && endWholeHour) {
-      return `${this.formatShort24HourEventTime(startDate, { appendHourSuffix: false })}-${this.formatShort24HourEventTime(endDate)}`;
+      return `${this.formatShort24HourEventTime(startDate, { ...options, appendHourSuffix: false })}-${this.formatShort24HourEventTime(endDate, options)}`;
     }
 
-    return `${this.formatShort24HourEventTime(startDate, { appendHourSuffix: false })}-${this.formatShort24HourEventTime(endDate, { appendHourSuffix: endWholeHour })}`;
+    return `${this.formatShort24HourEventTime(startDate, { ...options, appendHourSuffix: false })}-${this.formatShort24HourEventTime(endDate, { ...options, appendHourSuffix: endWholeHour })}`;
   }
 
   getMonthWeekRowCount() {
@@ -8394,7 +8398,7 @@ class SkylightCalendarCard extends HTMLElement {
       displayTitle: shouldIncludeStartTime
         ? this.t('eventTitleWithStartTime', {
             title: displayTitle,
-            time: this.formatEventTime(eventStart)
+            time: this.formatEventTime(eventStart, { schedule: true })
           })
         : displayTitle
     };

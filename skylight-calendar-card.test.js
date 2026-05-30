@@ -236,6 +236,42 @@ test('shorten_event_times defaults to unchanged event time formatting', () => {
   assert.equal(card.formatEventTimeRange(start, end), `${card.formatTime(start)} - ${card.formatTime(end)}`);
 });
 
+test('shorten_event_times false preserves schedule formatter labels', () => {
+  const card = makeCard({ entities: ['calendar.family'], locale: 'en-US', shorten_event_times: false });
+  const originalFormatTime = card.formatTime.bind(card);
+  const originalFormatScheduleTime = card.formatScheduleTime.bind(card);
+  const formatToken = (prefix, date) => `${prefix}-${date.getUTCHours()}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+  card.formatTime = (date) => formatToken('plain', date);
+  card.formatScheduleTime = (date) => formatToken('schedule', date);
+
+  try {
+    const event = {
+      entityId: 'calendar.family',
+      color: '#3366ff',
+      summary: 'Schedule event',
+      start: { dateTime: '2026-05-14T09:00:00Z' },
+      end: { dateTime: '2026-05-14T10:30:00Z' }
+    };
+    const weekStandardHtml = card.renderTimedEventsForDay([event], new Date('2026-05-14T00:00:00Z'), 0, 23, 40);
+
+    assert.match(weekStandardHtml, /schedule-9:00 - schedule-10:30/);
+    assert.doesNotMatch(weekStandardHtml, /plain-9:00 - plain-10:30/);
+    assert.equal(card.formatEventTimeRange(new Date('2026-05-14T09:00:00Z'), new Date('2026-05-14T10:30:00Z')), 'plain-9:00 - plain-10:30');
+    assert.equal(card.formatEventTimeRange(new Date('2026-05-14T09:00:00Z'), new Date('2026-05-14T10:30:00Z'), { schedule: true }), 'schedule-9:00 - schedule-10:30');
+
+    const spanningEvent = {
+      ...event,
+      summary: 'Overnight event',
+      start: { dateTime: '2026-05-14T22:00:00Z' },
+      end: { dateTime: '2026-05-16T01:00:00Z' }
+    };
+    assert.equal(card.getScheduleVisualInfo(spanningEvent).displayTitle, 'Overnight event, schedule-22:00');
+  } finally {
+    card.formatTime = originalFormatTime;
+    card.formatScheduleTime = originalFormatScheduleTime;
+  }
+});
+
 test('shorten_event_times removes minutes from whole-hour 12-hour event times', () => {
   const card = makeCard({ entities: ['calendar.family'], locale: 'en-US', shorten_event_times: true });
   const start = new Date('2026-05-14T10:00:00Z');
