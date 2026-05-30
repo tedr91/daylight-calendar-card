@@ -259,6 +259,16 @@ test('shorten_event_times compacts whole-hour 24-hour ranges', () => {
   assert.equal(card.formatEventTimeRange(start, end), '10-11h');
 });
 
+test('shorten_event_times preserves h24 midnight hour labels', () => {
+  const card = makeCard({ entities: ['calendar.family'], locale: 'en-US', use_24hr_schedule: true, shorten_event_times: true });
+  const start = new Date('2026-05-14T23:00:00Z');
+  const end = new Date('2026-05-15T00:00:00Z');
+
+  assert.equal(card.formatTime(end), '24:00');
+  assert.equal(card.formatEventTime(end), '24h');
+  assert.equal(card.formatEventTimeRange(start, end), '23-24h');
+});
+
 test('shorten_event_times preserves needed minutes in mixed 24-hour ranges', () => {
   const card = makeCard({ entities: ['calendar.family'], locale: 'en-US', use_24hr_schedule: true, shorten_event_times: true });
 

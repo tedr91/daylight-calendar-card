@@ -7491,6 +7491,12 @@ class SkylightCalendarCard extends HTMLElement {
   }
 
   formatLocalizedHour(date) {
+    const formatter = new Intl.DateTimeFormat(this.getLocale(), this.getTimeFormatOptions());
+    const hourPart = formatter.formatToParts(date).find((part) => part.type === 'hour');
+    if (hourPart) {
+      return hourPart.value;
+    }
+
     return new Intl.NumberFormat(this.getLocale(), { useGrouping: false }).format(date.getHours());
   }
 
