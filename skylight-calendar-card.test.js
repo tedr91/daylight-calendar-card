@@ -106,7 +106,7 @@ test('getStubConfig includes key configuration defaults', () => {
   const requiredKeys = [
     'default_view', 'week_days', 'week_start_hour', 'week_end_hour',
     'lock_schedule_hours', 'show_all_events_month', 'show_all_details_month',
-    'hide_empty_days', 'agenda_compact_events', 'compact_width',
+    'hide_empty_days', 'agenda_compact_events', 'shorten_event_times', 'compact_width',
     'show_current_time_bar', 'show_event_location', 'use_short_location',
     'event_calendar_friendly_name', 'event_title_prefix', 'past_event_mode', 'event_color_mode',
     'event_neutral_background', 'event_tint_opacity', 'event_color_bar_width', 'combine_style',
@@ -145,6 +145,7 @@ test('setConfig applies visual layout and styling options', () => {
     event_calendar_friendly_name: true,
     event_title_prefix: 'icon',
     show_current_time_bar: true,
+    shorten_event_times: true,
     header_color: '#123456',
     header_text_color: '#ffffff',
     header_background_opacity: 55,
@@ -197,6 +198,7 @@ test('setConfig applies visual layout and styling options', () => {
   assert.equal(card._config.event_calendar_friendly_name, true);
   assert.equal(card._config.event_title_prefix, 'badge_icon');
   assert.equal(card._config.show_current_time_bar, true);
+  assert.equal(card._config.shorten_event_times, true);
   assert.equal(card._config.header_color, '#123456');
   assert.equal(card._config.header_text_color, '#ffffff');
   assert.equal(card._config.header_background_opacity, 55);
@@ -222,6 +224,108 @@ test('setConfig applies visual layout and styling options', () => {
   assert.deepEqual(card._config.default_hidden_calendars, ['calendar.family']);
   assert.equal(card._hiddenCalendars.has('calendar.family'), true);
   assert.equal(card._config.virtual_calendars[0].name, 'home');
+});
+
+test('shorten_event_times defaults to unchanged event time formatting', () => {
+  const card = makeCard({ entities: ['calendar.family'], locale: 'en-US' });
+  const start = new Date('2026-05-14T10:00:00Z');
+  const end = new Date('2026-05-14T11:00:00Z');
+
+  assert.equal(card._config.shorten_event_times, false);
+  assert.equal(card.formatEventTime(start), card.formatTime(start));
+  assert.equal(card.formatEventTimeRange(start, end), `${card.formatTime(start)} - ${card.formatTime(end)}`);
+});
+
+test('shorten_event_times false preserves schedule formatter labels', () => {
+  const card = makeCard({ entities: ['calendar.family'], locale: 'en-US', shorten_event_times: false });
+  const originalFormatTime = card.formatTime.bind(card);
+  const originalFormatScheduleTime = card.formatScheduleTime.bind(card);
+  const formatToken = (prefix, date) => `${prefix}-${date.getUTCHours()}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+  card.formatTime = (date) => formatToken('plain', date);
+  card.formatScheduleTime = (date) => formatToken('schedule', date);
+
+  try {
+    const event = {
+      entityId: 'calendar.family',
+      color: '#3366ff',
+      summary: 'Schedule event',
+      start: { dateTime: '2026-05-14T09:00:00Z' },
+      end: { dateTime: '2026-05-14T10:30:00Z' }
+    };
+    const weekStandardHtml = card.renderTimedEventsForDay([event], new Date('2026-05-14T00:00:00Z'), 0, 23, 40);
+
+    assert.match(weekStandardHtml, /schedule-9:00 - schedule-10:30/);
+    assert.doesNotMatch(weekStandardHtml, /plain-9:00 - plain-10:30/);
+    assert.equal(card.formatEventTimeRange(new Date('2026-05-14T09:00:00Z'), new Date('2026-05-14T10:30:00Z')), 'plain-9:00 - plain-10:30');
+    assert.equal(card.formatEventTimeRange(new Date('2026-05-14T09:00:00Z'), new Date('2026-05-14T10:30:00Z'), { schedule: true }), 'schedule-9:00 - schedule-10:30');
+
+    const spanningEvent = {
+      ...event,
+      summary: 'Overnight event',
+      start: { dateTime: '2026-05-14T22:00:00Z' },
+      end: { dateTime: '2026-05-16T01:00:00Z' }
+    };
+    assert.equal(card.getScheduleVisualInfo(spanningEvent).displayTitle, 'Overnight event, schedule-22:00');
+  } finally {
+    card.formatTime = originalFormatTime;
+    card.formatScheduleTime = originalFormatScheduleTime;
+  }
+});
+
+test('shorten_event_times removes minutes from whole-hour 12-hour event times', () => {
+  const card = makeCard({ entities: ['calendar.family'], locale: 'en-US', shorten_event_times: true });
+  const start = new Date('2026-05-14T10:00:00Z');
+  const end = new Date('2026-05-14T11:00:00Z');
+
+  assert.equal(card.formatEventTime(start), '10 AM');
+  assert.equal(card.formatEventTimeRange(start, end), '10 AM - 11 AM');
+});
+
+test('shorten_event_times compacts whole-hour 24-hour event times', () => {
+  const card = makeCard({ entities: ['calendar.family'], locale: 'en-US', use_24hr_schedule: true, shorten_event_times: true });
+
+  assert.equal(card.formatEventTime(new Date('2026-05-14T10:00:00Z')), '10h');
+});
+
+test('shorten_event_times compacts whole-hour 24-hour ranges', () => {
+  const card = makeCard({ entities: ['calendar.family'], locale: 'en-US', use_24hr_schedule: true, shorten_event_times: true });
+  const start = new Date('2026-05-14T10:00:00Z');
+  const end = new Date('2026-05-14T11:00:00Z');
+
+  assert.equal(card.formatEventTimeRange(start, end), '10-11h');
+});
+
+test('shorten_event_times preserves h24 midnight hour labels', () => {
+  const card = makeCard({ entities: ['calendar.family'], locale: 'en-US', use_24hr_schedule: true, shorten_event_times: true });
+  const start = new Date('2026-05-14T23:00:00Z');
+  const end = new Date('2026-05-15T00:00:00Z');
+
+  assert.equal(card.formatTime(end), '24:00');
+  assert.equal(card.formatEventTime(end), '24h');
+  assert.equal(card.formatEventTimeRange(start, end), '23-24h');
+});
+
+test('shorten_event_times preserves needed minutes in mixed 24-hour ranges', () => {
+  const card = makeCard({ entities: ['calendar.family'], locale: 'en-US', use_24hr_schedule: true, shorten_event_times: true });
+
+  assert.equal(card.formatEventTimeRange(new Date('2026-05-14T10:30:00Z'), new Date('2026-05-14T11:00:00Z')), '10:30-11h');
+  assert.equal(card.formatEventTimeRange(new Date('2026-05-14T10:00:00Z'), new Date('2026-05-14T11:30:00Z')), '10-11:30');
+  assert.equal(card.formatEventTimeRange(new Date('2026-05-14T10:15:00Z'), new Date('2026-05-14T11:45:00Z')), '10:15-11:45');
+});
+
+test('shorten_event_times leaves all-day event labels unaffected', () => {
+  const event = {
+    entityId: 'calendar.family',
+    color: '#3366ff',
+    summary: 'All-day event',
+    start: { date: '2026-05-14' },
+    end: { date: '2026-05-15' }
+  };
+  const card = makeCard({ entities: ['calendar.family'], locale: 'en-US', shorten_event_times: true });
+  const html = card.renderWeekCompactEvent(event, new Date('2026-05-14T00:00:00Z'));
+
+  assert.match(html, /week-compact-event-time">All Day</);
+  assert.doesNotMatch(html, /10 AM|10h/);
 });
 
 test('default_hidden_calendars initializes hidden calendar badges', () => {
