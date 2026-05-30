@@ -1007,6 +1007,166 @@ test('day_badges supports configurable size and font_size', () => {
   assert.doesNotMatch(html, /--day-badge-font-size:/);
 });
 
+
+function extractCssRule(styles, selector) {
+  const start = styles.indexOf(selector);
+  assert.notEqual(start, -1, `${selector} should exist`);
+  const end = styles.indexOf('}', start);
+  return styles.slice(start, end + 1);
+}
+
+test('getStyles includes full-height flex layout contract for HA Sections grids', () => {
+  const card = makeCard({ entities: ['calendar.a'] });
+  const styles = card.getStyles();
+
+  const hostRule = extractCssRule(styles, ':host,');
+  assert.match(hostRule, /height:\s*100%/);
+  assert.match(hostRule, /min-height:\s*0/);
+
+  const containerRule = extractCssRule(styles, '.calendar-container {');
+  assert.match(containerRule, /height:\s*100%/);
+  assert.match(containerRule, /min-height:\s*100%/);
+  assert.match(containerRule, /display:\s*flex/);
+  assert.match(containerRule, /flex-direction:\s*column/);
+
+  const bodyRule = extractCssRule(styles, '.calendar-body {');
+  assert.match(bodyRule, /flex:\s*1 1 auto/);
+  assert.match(bodyRule, /min-height:\s*0/);
+  assert.match(bodyRule, /display:\s*flex/);
+  assert.match(bodyRule, /flex-direction:\s*column/);
+
+  for (const selector of ['.calendar-grid {', '.week-compact-container {', '.week-standard-container {', '.agenda-container {']) {
+    const rule = extractCssRule(styles, selector);
+    assert.match(rule, /flex:\s*1 1 auto/, `${selector} should flex`);
+    assert.match(rule, /min-height:\s*0/, `${selector} should be allowed to shrink`);
+  }
+});
+
+test('getCompactContainerStyle uses grid-aware percentage height inside constrained parent', () => {
+  const card = makeCard({ entities: ['calendar.a'], compact_height: true });
+  const parent = {
+    style: { height: '480px' },
+    getBoundingClientRect: () => ({ width: 320, height: 480 }),
+    hasAttribute: () => false,
+    classList: { contains: () => false }
+  };
+  card.parentElement = parent;
+
+  const originalGetComputedStyle = window.getComputedStyle;
+  try {
+    window.getComputedStyle = (element) => element === parent
+      ? { height: '480px', maxHeight: 'none', display: 'block', overflowY: 'visible', overflow: 'visible' }
+      : originalGetComputedStyle(element);
+
+    assert.equal(card.hasFixedHeightParentAllocation(), true);
+    assert.equal(card.getCompactContainerStyle(720), 'height: 100%; min-height: 0; overflow-y: auto;');
+  } finally {
+    window.getComputedStyle = originalGetComputedStyle;
+  }
+});
+
+
+test('getCompactContainerStyle preserves viewport fallback for auto-height parent with computed height', () => {
+  const card = makeCard({ entities: ['calendar.a'], compact_height: true });
+  const parent = {
+    style: {},
+    getAttribute: () => '',
+    getBoundingClientRect: () => ({ width: 320, height: 480 }),
+    hasAttribute: () => false,
+    classList: { contains: () => false }
+  };
+  card.parentElement = parent;
+  card.getBoundingClientRect = () => ({ width: 320, height: 480, top: 120 });
+
+  const originalGetComputedStyle = window.getComputedStyle;
+  const originalInnerHeight = window.innerHeight;
+  const originalVisualViewport = window.visualViewport;
+  try {
+    window.innerHeight = 900;
+    delete window.visualViewport;
+    window.getComputedStyle = (element) => element === parent
+      ? { height: '480px', maxHeight: 'none', display: 'block', overflowY: 'visible', overflow: 'visible' }
+      : originalGetComputedStyle(element);
+
+    assert.equal(card.hasFixedHeightParentAllocation(), false);
+    assert.equal(card.getCompactContainerStyle(), 'height: 780px; max-height: 780px; overflow-y: auto;');
+  } finally {
+    window.getComputedStyle = originalGetComputedStyle;
+    window.innerHeight = originalInnerHeight;
+    window.visualViewport = originalVisualViewport;
+  }
+});
+
+test('getCompactContainerStyle uses grid-aware percentage height inside grid-like parent', () => {
+  const card = makeCard({ entities: ['calendar.a'], compact_height: true });
+  const parent = {
+    style: {},
+    getAttribute: () => '',
+    getBoundingClientRect: () => ({ width: 320, height: 480 }),
+    hasAttribute: () => false,
+    classList: { contains: (className) => className === 'grid-cell' }
+  };
+  card.parentElement = parent;
+
+  const originalGetComputedStyle = window.getComputedStyle;
+  try {
+    window.getComputedStyle = (element) => element === parent
+      ? { height: '480px', maxHeight: 'none', display: 'block', overflowY: 'visible', overflow: 'visible' }
+      : originalGetComputedStyle(element);
+
+    assert.equal(card.hasFixedHeightParentAllocation(), true);
+    assert.equal(card.getCompactContainerStyle(720), 'height: 100%; min-height: 0; overflow-y: auto;');
+  } finally {
+    window.getComputedStyle = originalGetComputedStyle;
+  }
+});
+
+test('getCompactContainerStyle preserves viewport fallback without constrained parent', () => {
+  const card = makeCard({ entities: ['calendar.a'], compact_height: true });
+  card.parentElement = null;
+  card.getBoundingClientRect = () => ({ top: 120 });
+  const originalInnerHeight = window.innerHeight;
+  const originalVisualViewport = window.visualViewport;
+  try {
+    window.innerHeight = 900;
+    delete window.visualViewport;
+    assert.equal(card.hasFixedHeightParentAllocation(), false);
+    assert.equal(card.getCompactContainerStyle(), 'height: 780px; max-height: 780px; overflow-y: auto;');
+  } finally {
+    window.innerHeight = originalInnerHeight;
+    window.visualViewport = originalVisualViewport;
+  }
+});
+
+test('disconnectedCallback disconnects host ResizeObserver', () => {
+  const card = makeCard({ entities: ['calendar.a'] });
+  let disconnectCount = 0;
+  const originalResizeObserver = window.ResizeObserver;
+  const originalCancelAnimationFrame = window.cancelAnimationFrame;
+  const originalRemoveEventListener = window.removeEventListener;
+  try {
+    window.ResizeObserver = class ResizeObserverMock {
+      observe() {}
+      disconnect() { disconnectCount += 1; }
+    };
+    window.cancelAnimationFrame = () => {};
+    window.removeEventListener = () => {};
+    card.parentElement = { getBoundingClientRect: () => ({ width: 320, height: 480 }) };
+
+    card.observeHostAndParentResize();
+    assert.ok(card._hostResizeObserver);
+
+    card.disconnectedCallback();
+
+    assert.equal(disconnectCount, 1);
+    assert.equal(card._hostResizeObserver, null);
+  } finally {
+    window.ResizeObserver = originalResizeObserver;
+    window.cancelAnimationFrame = originalCancelAnimationFrame;
+    window.removeEventListener = originalRemoveEventListener;
+  }
+});
+
 test('day_badge CSS variables do not leak into non-badge selectors', () => {
   const card = makeCard({ entities: ['calendar.a'] });
   const styles = card.getStyles();

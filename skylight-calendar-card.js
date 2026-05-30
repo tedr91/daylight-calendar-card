@@ -923,6 +923,10 @@ class SkylightCalendarCard extends HTMLElement {
     this._wrapMeasureRaf2 = null;
     this._monthGridResizeObserver = null;
     this._headerResizeObserver = null;
+    this._hostResizeObserver = null;
+    this._hostResizeRaf = null;
+    this._observedResizeParent = null;
+    this._lastObservedHostSize = null;
     this._monthCompactMeasurementDirty = true;
     this._lastCompactMonthViewportHeight = null;
     this._handleViewportResize = () => {
@@ -2957,6 +2961,7 @@ class SkylightCalendarCard extends HTMLElement {
     window.addEventListener('resize', this._handleViewportResize);
     window.visualViewport?.addEventListener('resize', this._handleViewportResize);
     this.attachSystemThemeListener();
+    this.observeHostAndParentResize();
     this.render();
   }
 
@@ -2971,6 +2976,16 @@ class SkylightCalendarCard extends HTMLElement {
     if (this._headerResizeObserver) {
       this._headerResizeObserver.disconnect();
       this._headerResizeObserver = null;
+    }
+    if (this._hostResizeObserver) {
+      this._hostResizeObserver.disconnect();
+      this._hostResizeObserver = null;
+    }
+    this._observedResizeParent = null;
+    this._lastObservedHostSize = null;
+    if (this._hostResizeRaf !== null) {
+      window.cancelAnimationFrame(this._hostResizeRaf);
+      this._hostResizeRaf = null;
     }
     this.detachSystemThemeListener();
     this.teardownWeatherForecastSubscription();
@@ -3002,8 +3017,65 @@ class SkylightCalendarCard extends HTMLElement {
     return Math.max(minimumHeight, Math.floor(viewportHeight - containerTop - bottomSpacing));
   }
 
+  getElementSizeForAllocation(element) {
+    if (!element || typeof element.getBoundingClientRect !== 'function') return { width: 0, height: 0 };
+    const rect = element.getBoundingClientRect();
+    return {
+      width: Number.isFinite(rect.width) ? rect.width : 0,
+      height: Number.isFinite(rect.height) ? rect.height : 0
+    };
+  }
+
+  hasFixedHeightParentAllocation() {
+    const parent = this.parentElement;
+    if (!parent || typeof parent.getBoundingClientRect !== 'function') return false;
+
+    const parentSize = this.getElementSizeForAllocation(parent);
+    if (parentSize.height <= 0) return false;
+
+    const parentStyle = typeof window.getComputedStyle === 'function' ? window.getComputedStyle(parent) : null;
+    const parentMaxHeight = parentStyle?.maxHeight || '';
+    const parentDisplay = parentStyle?.display || '';
+    const parentOverflowY = parentStyle?.overflowY || parentStyle?.overflow || '';
+    const inlineStyle = parent.getAttribute?.('style') || '';
+    const hasExplicitCssHeight = Boolean(
+      parent.style?.height ||
+      parent.style?.minHeight ||
+      parent.style?.maxHeight ||
+      /(?:^|;)\s*(?:height|min-height|max-height)\s*:/i.test(inlineStyle) ||
+      (parentMaxHeight && parentMaxHeight !== 'none' && parentMaxHeight !== '0px')
+    );
+    const looksLikeGridAllocation = /grid/i.test(parentDisplay) || parent.hasAttribute?.('grid_options') || parent.classList?.contains('grid-cell');
+    const clipsOrScrollsOverflow = /(auto|hidden|scroll|clip)/.test(parentOverflowY);
+    const hostSize = this.getElementSizeForAllocation(this);
+    const parentHasExtraAllocatedHeight = hostSize.height > 0 && parentSize.height - hostSize.height > 1;
+
+    return hasExplicitCssHeight || looksLikeGridAllocation || clipsOrScrollsOverflow || parentHasExtraAllocatedHeight;
+  }
+
+  getGridAwareCompactContainerStyle() {
+    return 'height: 100%; min-height: 0; overflow-y: auto;';
+  }
+
+  getCompactMonthGridStyle(monthWeekRows, compactMaxHeight = null) {
+    const rowTemplate = `grid-template-rows: auto repeat(${monthWeekRows}, minmax(0, 1fr));`;
+
+    if (this.hasFixedHeightParentAllocation()) {
+      return `height: 100%; min-height: 0; overflow-y: auto; ${rowTemplate}`;
+    }
+
+    const resolvedMaxHeight = compactMaxHeight || this.getCompactMaxHeight(this._monthContainerTopInViewport);
+    return resolvedMaxHeight
+      ? `height: ${resolvedMaxHeight}px; overflow-y: auto; ${rowTemplate}`
+      : '';
+  }
+
   getCompactContainerStyle(maxHeight = null) {
     if (!this._config.compact_height) return '';
+
+    if (this.hasFixedHeightParentAllocation()) {
+      return this.getGridAwareCompactContainerStyle();
+    }
 
     const resolvedMaxHeight = maxHeight || this.getCompactMaxHeight();
     if (!resolvedMaxHeight) return '';
@@ -3093,6 +3165,61 @@ class SkylightCalendarCard extends HTMLElement {
     });
   }
 
+
+  observeHostAndParentResize() {
+    if (typeof window.ResizeObserver !== 'function') return;
+
+    const parent = this.parentElement || null;
+    if (this._hostResizeObserver && this._observedResizeParent === parent) return;
+
+    if (this._hostResizeObserver) {
+      this._hostResizeObserver.disconnect();
+      this._hostResizeObserver = null;
+    }
+
+    this._observedResizeParent = parent;
+    this._lastObservedHostSize = this.measureHostAndParentSize();
+    this._hostResizeObserver = new window.ResizeObserver(() => {
+      this.scheduleHostAndParentResizeHandling();
+    });
+    this._hostResizeObserver.observe(this);
+    if (parent) {
+      this._hostResizeObserver.observe(parent);
+    }
+  }
+
+  measureHostAndParentSize() {
+    const hostSize = this.getElementSizeForAllocation(this);
+    const parentSize = this.getElementSizeForAllocation(this.parentElement);
+    return {
+      hostWidth: Math.round(hostSize.width),
+      hostHeight: Math.round(hostSize.height),
+      parentWidth: Math.round(parentSize.width),
+      parentHeight: Math.round(parentSize.height)
+    };
+  }
+
+  hasObservedHostSizeChanged(nextSize) {
+    const previousSize = this._lastObservedHostSize;
+    if (!previousSize) return true;
+    return Object.keys(nextSize).some((key) => Math.abs(nextSize[key] - previousSize[key]) > 1);
+  }
+
+  scheduleHostAndParentResizeHandling() {
+    if (this._hostResizeRaf !== null) return;
+
+    this._hostResizeRaf = window.requestAnimationFrame(() => {
+      this._hostResizeRaf = null;
+      const nextSize = this.measureHostAndParentSize();
+      if (!this.hasObservedHostSizeChanged(nextSize)) return;
+
+      this._lastObservedHostSize = nextSize;
+      if (this._config.compact_height && this._viewMode === 'month' && !this.shouldShowAllEventsInMonth()) {
+        this._monthCompactMeasurementDirty = true;
+      }
+      this.render();
+    });
+  }
 
   observeHeaderResize() {
     if (!this._root || typeof window.ResizeObserver !== 'function') return;
@@ -3427,6 +3554,8 @@ class SkylightCalendarCard extends HTMLElement {
         display: block;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
         width: 100%;
+        height: 100%;
+        min-height: 0;
       }
 
       .calendar-container {
@@ -3436,6 +3565,10 @@ class SkylightCalendarCard extends HTMLElement {
         overflow: hidden;
         box-shadow: var(--ha-card-box-shadow, 0 2px 8px rgba(0,0,0,0.1));
         width: 100%;
+        height: 100%;
+        min-height: 100%;
+        display: flex;
+        flex-direction: column;
         color-scheme: light;
         --schedule-hour-line-color: #d1d5db;
       }
@@ -3470,6 +3603,7 @@ class SkylightCalendarCard extends HTMLElement {
       .header,
       .header-compact {
         position: relative;
+        flex: 0 0 auto;
         background: transparent;
         color: var(--header-text-color, white);
       }
@@ -3507,6 +3641,10 @@ class SkylightCalendarCard extends HTMLElement {
       .calendar-body {
         position: relative;
         z-index: 1;
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
       }
 
       .calendar-body::before {
@@ -3912,6 +4050,9 @@ class SkylightCalendarCard extends HTMLElement {
         gap: 1px;
         background: #e5e7eb;
         border-top: 1px solid #e5e7eb;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
       }
 
       .calendar-grid.month-week-numbers {
@@ -4163,6 +4304,9 @@ class SkylightCalendarCard extends HTMLElement {
         gap: 1px;
         background: #e5e7eb;
         border-top: 1px solid #e5e7eb;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
       }
 
       .week-day-column {
@@ -4359,6 +4503,8 @@ class SkylightCalendarCard extends HTMLElement {
         gap: 8px;
         overflow-y: auto;
         padding-right: 4px;
+        flex: 1 1 auto;
+        min-height: 0;
       }
 
       .agenda-day-row {
@@ -4702,10 +4848,12 @@ class SkylightCalendarCard extends HTMLElement {
         display: flex;
         align-items: flex-start;
         background: #f9fafb;
-        overflow-x: auto;
+        overflow: auto;
         padding: 16px;
         gap: var(--week-standard-column-gap);
         width: 100%;
+        flex: 1 1 auto;
+        min-height: 0;
         box-sizing: border-box;
       }
 
@@ -6148,6 +6296,7 @@ class SkylightCalendarCard extends HTMLElement {
       </div>
     `;
 
+    this.observeHostAndParentResize();
     this.attachEventListeners();
     this.updateCompactHeaderWrapState();
     this.updateCalendarBadgesScrollState();
@@ -6393,12 +6542,10 @@ class SkylightCalendarCard extends HTMLElement {
     if (this._viewMode === 'month') {
       const showAllEventsMonth = this.shouldShowAllEventsInMonth();
       const isCompactMonth = this._config.compact_height && !showAllEventsMonth;
-      const compactMaxHeight = isCompactMonth ? this.getCompactMaxHeight(this._monthContainerTopInViewport) : null;
+      const compactMaxHeight = isCompactMonth && !this.hasFixedHeightParentAllocation() ? this.getCompactMaxHeight(this._monthContainerTopInViewport) : null;
       const monthWeekRows = this.getMonthWeekRowCount();
       const showMonthWeekNumbers = this.shouldShowMonthWeekNumbers();
-      const monthStyle = compactMaxHeight
-        ? `height: ${compactMaxHeight}px; overflow-y: auto; grid-template-rows: auto repeat(${monthWeekRows}, minmax(0, 1fr));`
-        : '';
+      const monthStyle = isCompactMonth ? this.getCompactMonthGridStyle(monthWeekRows, compactMaxHeight) : '';
       const monthClass = [
         'calendar-grid',
         isCompactMonth ? 'compact-month' : '',
@@ -6443,10 +6590,11 @@ class SkylightCalendarCard extends HTMLElement {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dayNames = this.getWeekdayNames('short');
+    const containerStyle = this.getCompactContainerStyle();
 
     return `
       ${!this._config.compact_header && !this._config.hide_calendars ? this.renderCalendarBadges() : ''}
-      <div class="week-compact-container">
+      <div class="week-compact-container" style="${containerStyle}">
         ${weekDays.map(date => {
           const isToday = date.toDateString() === today.toDateString();
           const dayEventsForMatching = this.getEventsForDay(date, { includeHiddenStyledEvents: true });
