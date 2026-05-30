@@ -153,14 +153,20 @@ Full documentation is available in the wiki:
 
 ## 🛠 Troubleshooting
 
-If the card doesn’t appear:
 
-* Refresh your browser
-* Clear cache
-* Confirm resource path is correct
-* Check browser console for errors
+### I don't see the last changes
+1. Check that your Daylight Calendar Card version is the latest in HACS.
+2. Check that the latest Daylight card is actually loaded. Starting in v4.4.0, the downloaded and running version is displayed in the **About / Diagnostics** section of the visual editor.
+3. Clear your cache :
+   * check Settings → Dashboards → Resources
+   * remove any versions of `/hacsfiles/daylight-calendar-card/skylight-calendar-card.js`
+   * remove any versions of `/hacsfiles/skylight-calendar-card/skylight-calendar-card.js`
+   * uninstall Daylight from HACS
+   * reinstall Daylight from HACS
+   * Refresh your browser
+   * Clear app/browser cache
 
-Still stuck? Open an issue below
+Still stuck? Open an issue
 
 ---
 
