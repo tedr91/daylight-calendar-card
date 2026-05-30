@@ -12047,7 +12047,7 @@ class SkylightCalendarCardEditor extends HTMLElement {
     if (!field) return;
 
     if (field === 'virtual_calendar_color') {
-      this.updateVirtualCalendar(Number(mapKey), { color: hexColor });
+      this.updateVirtualCalendar(Number(mapKey), { color: hexColor }, { render: true });
       this.closeColorPicker();
       return;
     }
@@ -12393,7 +12393,7 @@ class SkylightCalendarCardEditor extends HTMLElement {
     const value = String(event.target.value || '').trim();
     this.updateVirtualCalendar(index, {
       [field]: field === 'icon' || field === 'color' ? (value || null) : value
-    }, { render: field === 'id' });
+    }, { render: field === 'id' || field === 'name' || field === 'color' });
   }
 
   handleVirtualCalendarEntityChange(event) {

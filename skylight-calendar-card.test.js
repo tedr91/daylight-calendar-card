@@ -938,6 +938,19 @@ test('editor virtual calendar rendered controls dispatch listeners and update co
   nameInput.value = '  DOM Calendar  ';
   nameInput.dispatch('change');
   assert.equal(editor._config.virtual_calendars[0].name, 'DOM Calendar');
+  assert.match(editor.innerHTML, /<strong>DOM Calendar<\/strong>/);
+
+  const colorInput = harness.findControl((control) => control.dataset.virtualCalendarField === 'color' && control.dataset.virtualCalendarIndex === '0');
+  assert.ok(colorInput, 'rendered color input should be found after name re-render');
+  colorInput.value = '#123456';
+  colorInput.dispatch('change');
+  assert.equal(editor._config.virtual_calendars[0].color, '#123456');
+  assert.match(editor.innerHTML, /Override: #123456/);
+
+  editor._colorPickerState = { field: 'virtual_calendar_color', mapKey: '0' };
+  editor.applyColorPickerColor('#654321');
+  assert.equal(editor._config.virtual_calendars[0].color, '#654321');
+  assert.match(editor.innerHTML, /Override: #654321/);
 
   const workCheckbox = harness.findControl((control) => control.dataset.virtualCalendarEntity === 'true' && control.value === 'calendar.work');
   assert.ok(workCheckbox, 'rendered work checkbox should be found');
