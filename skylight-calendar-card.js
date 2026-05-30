@@ -3034,18 +3034,15 @@ class SkylightCalendarCard extends HTMLElement {
     if (parentSize.height <= 0) return false;
 
     const parentStyle = typeof window.getComputedStyle === 'function' ? window.getComputedStyle(parent) : null;
-    const parentComputedHeight = parentStyle?.height || '';
     const parentMaxHeight = parentStyle?.maxHeight || '';
     const parentDisplay = parentStyle?.display || '';
     const parentOverflowY = parentStyle?.overflowY || parentStyle?.overflow || '';
     const inlineStyle = parent.getAttribute?.('style') || '';
-    const hasComputedCssHeight = /^\d*\.?\d+px$/.test(parentComputedHeight) && parentComputedHeight !== '0px';
     const hasExplicitCssHeight = Boolean(
       parent.style?.height ||
       parent.style?.minHeight ||
       parent.style?.maxHeight ||
       /(?:^|;)\s*(?:height|min-height|max-height)\s*:/i.test(inlineStyle) ||
-      hasComputedCssHeight ||
       (parentMaxHeight && parentMaxHeight !== 'none' && parentMaxHeight !== '0px')
     );
     const looksLikeGridAllocation = /grid/i.test(parentDisplay) || parent.hasAttribute?.('grid_options') || parent.classList?.contains('grid-cell');

@@ -1066,7 +1066,7 @@ test('getCompactContainerStyle uses grid-aware percentage height inside constrai
 });
 
 
-test('getCompactContainerStyle honors stylesheet-defined parent height', () => {
+test('getCompactContainerStyle preserves viewport fallback for auto-height parent with computed height', () => {
   const card = makeCard({ entities: ['calendar.a'], compact_height: true });
   const parent = {
     style: {},
@@ -1076,7 +1076,37 @@ test('getCompactContainerStyle honors stylesheet-defined parent height', () => {
     classList: { contains: () => false }
   };
   card.parentElement = parent;
-  card.getBoundingClientRect = () => ({ width: 320, height: 480 });
+  card.getBoundingClientRect = () => ({ width: 320, height: 480, top: 120 });
+
+  const originalGetComputedStyle = window.getComputedStyle;
+  const originalInnerHeight = window.innerHeight;
+  const originalVisualViewport = window.visualViewport;
+  try {
+    window.innerHeight = 900;
+    delete window.visualViewport;
+    window.getComputedStyle = (element) => element === parent
+      ? { height: '480px', maxHeight: 'none', display: 'block', overflowY: 'visible', overflow: 'visible' }
+      : originalGetComputedStyle(element);
+
+    assert.equal(card.hasFixedHeightParentAllocation(), false);
+    assert.equal(card.getCompactContainerStyle(), 'height: 780px; max-height: 780px; overflow-y: auto;');
+  } finally {
+    window.getComputedStyle = originalGetComputedStyle;
+    window.innerHeight = originalInnerHeight;
+    window.visualViewport = originalVisualViewport;
+  }
+});
+
+test('getCompactContainerStyle uses grid-aware percentage height inside grid-like parent', () => {
+  const card = makeCard({ entities: ['calendar.a'], compact_height: true });
+  const parent = {
+    style: {},
+    getAttribute: () => '',
+    getBoundingClientRect: () => ({ width: 320, height: 480 }),
+    hasAttribute: () => false,
+    classList: { contains: (className) => className === 'grid-cell' }
+  };
+  card.parentElement = parent;
 
   const originalGetComputedStyle = window.getComputedStyle;
   try {
