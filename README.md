@@ -120,15 +120,6 @@ Some advanced features are supported by the card but must be configured in YAML.
 If you do not see an option in the visual editor, open the card in YAML mode. YAML-only features include:
 
 - `event_styles` — conditionally style individual events
-  ```yaml
-  event_styles:
-    - id: custom-past-muted
-      match:
-        past: true
-      style:
-        opacity: 0.35
-        filter: grayscale(80%)
-  ```
 - `day_styles` — conditionally style days
 - `virtual_calendars` — group multiple calendars into a single virtual calendar
 - Advanced UIX/Card Mod styling
