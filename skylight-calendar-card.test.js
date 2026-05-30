@@ -803,6 +803,268 @@ test('editor renders key controls and updates config on change', () => {
 });
 
 
+function createEditorDomHarness(editor) {
+  let html = '';
+  let controls = null;
+
+  const decode = (value = '') => String(value)
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+
+  const toDatasetKey = (name) => name.replace(/^data-/, '').replace(/-([a-z])/g, (_, char) => char.toUpperCase());
+
+  const parseAttributes = (attributeText) => {
+    const attrs = {};
+    const attrRegex = /([:\w-]+)(?:="([^"]*)")?/g;
+    let match;
+    while ((match = attrRegex.exec(attributeText))) {
+      attrs[match[1]] = match[2] === undefined ? true : decode(match[2]);
+    }
+    return attrs;
+  };
+
+  class FakeControl {
+    constructor(tag, attrs) {
+      this.tagName = tag.toUpperCase();
+      this.type = attrs.type || '';
+      this.value = attrs.value || '';
+      this.checked = Object.prototype.hasOwnProperty.call(attrs, 'checked');
+      this.disabled = Object.prototype.hasOwnProperty.call(attrs, 'disabled');
+      this.dataset = {};
+      this.listeners = {};
+      Object.entries(attrs).forEach(([name, value]) => {
+        if (name.startsWith('data-')) this.dataset[toDatasetKey(name)] = value === true ? 'true' : String(value);
+      });
+    }
+
+    addEventListener(type, handler) {
+      this.listeners[type] = this.listeners[type] || [];
+      this.listeners[type].push(handler);
+    }
+
+    dispatch(type) {
+      for (const handler of this.listeners[type] || []) {
+        handler({ target: this, currentTarget: this });
+      }
+    }
+  }
+
+  const parseControls = () => {
+    if (controls) return controls;
+    controls = [];
+    for (const match of html.matchAll(/<input\b([^>]*)>/g)) {
+      controls.push(new FakeControl('input', parseAttributes(match[1])));
+    }
+    for (const match of html.matchAll(/<button\b([^>]*)>[\s\S]*?<\/button>/g)) {
+      controls.push(new FakeControl('button', parseAttributes(match[1])));
+    }
+    return controls;
+  };
+
+  Object.defineProperty(editor, 'innerHTML', {
+    get() { return html; },
+    set(value) {
+      html = String(value);
+      controls = null;
+    },
+    configurable: true
+  });
+
+  editor.querySelector = () => null;
+  editor.querySelectorAll = (selector) => {
+    const allControls = parseControls();
+    if (selector === '[data-virtual-calendar-action]') {
+      return allControls.filter((control) => control.dataset.virtualCalendarAction !== undefined);
+    }
+    if (selector === '[data-virtual-calendar-field]') {
+      return allControls.filter((control) => control.dataset.virtualCalendarField !== undefined);
+    }
+    if (selector === '[data-virtual-calendar-entity]') {
+      return allControls.filter((control) => control.dataset.virtualCalendarEntity !== undefined);
+    }
+    if (selector === '[data-color-trigger]') {
+      return allControls.filter((control) => control.dataset.colorTrigger !== undefined);
+    }
+    const checkedEntityMatch = selector.match(/^input\[data-virtual-calendar-entity\]\[data-virtual-calendar-index="(\d+)"\]:checked$/);
+    if (checkedEntityMatch) {
+      return allControls.filter((control) => (
+        control.tagName === 'INPUT' &&
+        control.dataset.virtualCalendarEntity !== undefined &&
+        control.dataset.virtualCalendarIndex === checkedEntityMatch[1] &&
+        control.checked
+      ));
+    }
+    return [];
+  };
+
+  return {
+    getControls: parseControls,
+    findControl(predicate) {
+      return parseControls().find(predicate);
+    }
+  };
+}
+
+test('editor renders and updates virtual calendars without dropping empty entity selections', () => {
+  const Editor = customElements.get('skylight-calendar-card-editor');
+  const editor = new Editor();
+  editor._hass = {
+    states: {
+      'calendar.family': { entity_id: 'calendar.family', attributes: { friendly_name: 'Family' } },
+      'calendar.work': { entity_id: 'calendar.work', attributes: { friendly_name: 'Work' } }
+    }
+  };
+  editor.setConfig({
+    entities: ['calendar.family', 'calendar.work', 'virtual:old'],
+    virtual_calendars: [
+      { id: 'kids', name: 'Kids', icon: 'mdi:school', color: '#112233', entities: ['calendar.family', 'calendar.legacy'] },
+      'yaml-only-entry'
+    ]
+  });
+
+  assert.match(editor.innerHTML, /Virtual calendars/);
+  assert.match(editor.innerHTML, /data-virtual-calendar-field="name"/);
+  assert.match(editor.innerHTML, /data-virtual-calendar-entity="true"/);
+  assert.match(editor.innerHTML, /calendar\.legacy/);
+  assert.match(editor.innerHTML, /not in configured calendars/);
+  assert.match(editor.innerHTML, /Override: #112233/);
+  assert.doesNotMatch(editor.innerHTML, /value="virtual:old"/);
+
+  const emittedConfigs = [];
+  editor.dispatchEvent = (event) => {
+    emittedConfigs.push(event.detail.config);
+    return true;
+  };
+  editor.updateFieldValues = () => {};
+
+  editor.updateVirtualCalendar(0, { name: '  Kids Calendar  ', icon: '   ', color: '  #445566  ' });
+  assert.equal(editor._config.virtual_calendars[0].name, 'Kids Calendar');
+  assert.equal(editor._config.virtual_calendars[0].icon, null);
+  assert.equal(editor._config.virtual_calendars[0].color, '#445566');
+  assert.deepEqual(editor._config.virtual_calendars[0].entities, ['calendar.family', 'calendar.legacy']);
+  assert.equal(editor._config.virtual_calendars[1], 'yaml-only-entry');
+
+  editor.updateVirtualCalendar(0, { entities: [] });
+  assert.deepEqual(editor._config.virtual_calendars[0].entities, []);
+  assert.equal(emittedConfigs.at(-1).virtual_calendars.length, 2);
+  assert.equal(emittedConfigs.at(-1).virtual_calendars[1], 'yaml-only-entry');
+});
+
+test('editor can add, remove, reorder, and color virtual calendars', () => {
+  const Editor = customElements.get('skylight-calendar-card-editor');
+  const editor = new Editor();
+  editor._hass = { states: {} };
+  editor.setConfig({
+    entities: ['calendar.family'],
+    virtual_calendars: [
+      { id: 'virtual_1', name: 'One', entities: ['calendar.family'] },
+      { id: 'custom', name: 'Custom', entities: [] }
+    ]
+  });
+  editor.updateFieldValues = () => {};
+  editor.render = () => {};
+
+  const emittedConfigs = [];
+  editor.dispatchEvent = (event) => {
+    emittedConfigs.push(event.detail.config);
+    return true;
+  };
+
+  editor.addVirtualCalendar();
+  assert.equal(editor._config.virtual_calendars.at(-1).id, 'virtual_2');
+  assert.equal(editor._config.virtual_calendars.at(-1).name, 'Virtual Calendar');
+  assert.deepEqual(editor._config.virtual_calendars.at(-1).entities, []);
+
+  editor.moveVirtualCalendar(2, -1);
+  assert.equal(editor._config.virtual_calendars[1].id, 'virtual_2');
+  assert.equal(editor._config.virtual_calendars[2].id, 'custom');
+
+  editor._colorPickerState = { field: 'virtual_calendar_color', mapKey: '1' };
+  editor.applyColorPickerColor('#ABCDEF');
+  assert.equal(editor._config.virtual_calendars[1].color, '#ABCDEF');
+
+  editor.removeVirtualCalendar(1);
+  assert.deepEqual(editor._config.virtual_calendars.map((calendar) => calendar.id), ['virtual_1', 'custom']);
+  assert.equal(emittedConfigs.at(-1).virtual_calendars.length, 2);
+});
+
+
+test('editor flags blank and duplicate virtual calendar ids', () => {
+  const Editor = customElements.get('skylight-calendar-card-editor');
+  const editor = new Editor();
+  editor._hass = { states: {} };
+  editor.setConfig({
+    entities: ['calendar.family'],
+    virtual_calendars: [
+      { id: '', name: 'Blank', entities: [] },
+      { id: 'dupe', name: 'One', color: null, entities: [] },
+      { id: 'dupe', name: 'Two', color: '#3f51b5', entities: [] }
+    ]
+  });
+
+  assert.match(editor.innerHTML, /ID is required for runtime matching/);
+  assert.match(editor.innerHTML, /ID duplicates another virtual calendar/);
+  assert.match(editor.innerHTML, /No color override set/);
+  assert.match(editor.innerHTML, /Override: #3f51b5/);
+});
+
+test('editor virtual calendar rendered controls dispatch listeners and update config', () => {
+  const Editor = customElements.get('skylight-calendar-card-editor');
+  const editor = new Editor();
+  const harness = createEditorDomHarness(editor);
+  editor._hass = {
+    states: {
+      'calendar.family': { entity_id: 'calendar.family', attributes: { friendly_name: 'Family' } },
+      'calendar.work': { entity_id: 'calendar.work', attributes: { friendly_name: 'Work' } }
+    }
+  };
+  const emittedConfigs = [];
+  editor.dispatchEvent = (event) => {
+    emittedConfigs.push(event.detail.config);
+    return true;
+  };
+
+  editor.setConfig({ entities: ['calendar.family', 'calendar.work'], virtual_calendars: [] });
+  const addButton = harness.findControl((control) => control.dataset.virtualCalendarAction === 'add');
+  assert.ok(addButton, 'rendered add button should be found');
+  assert.ok(addButton.listeners.click?.length, 'add button should have a click listener');
+  addButton.dispatch('click');
+
+  assert.equal(editor._config.virtual_calendars.length, 1);
+  assert.equal(editor._config.virtual_calendars[0].id, 'virtual_1');
+
+  const nameInput = harness.findControl((control) => control.dataset.virtualCalendarField === 'name' && control.dataset.virtualCalendarIndex === '0');
+  assert.ok(nameInput, 'rendered name input should be found after re-render');
+  assert.ok(nameInput.listeners.change?.length, 'name input should have a change listener');
+  nameInput.value = '  DOM Calendar  ';
+  nameInput.dispatch('change');
+  assert.equal(editor._config.virtual_calendars[0].name, 'DOM Calendar');
+  assert.match(editor.innerHTML, /<strong>DOM Calendar<\/strong>/);
+
+  const colorInput = harness.findControl((control) => control.dataset.virtualCalendarField === 'color' && control.dataset.virtualCalendarIndex === '0');
+  assert.ok(colorInput, 'rendered color input should be found after name re-render');
+  colorInput.value = '#123456';
+  colorInput.dispatch('change');
+  assert.equal(editor._config.virtual_calendars[0].color, '#123456');
+  assert.match(editor.innerHTML, /Override: #123456/);
+
+  editor._colorPickerState = { field: 'virtual_calendar_color', mapKey: '0' };
+  editor.applyColorPickerColor('#654321');
+  assert.equal(editor._config.virtual_calendars[0].color, '#654321');
+  assert.match(editor.innerHTML, /Override: #654321/);
+
+  const workCheckbox = harness.findControl((control) => control.dataset.virtualCalendarEntity === 'true' && control.value === 'calendar.work');
+  assert.ok(workCheckbox, 'rendered work checkbox should be found');
+  assert.ok(workCheckbox.listeners.change?.length, 'entity checkbox should have a change listener');
+  workCheckbox.checked = true;
+  workCheckbox.dispatch('change');
+  assert.deepEqual(editor._config.virtual_calendars[0].entities, ['calendar.work']);
+  assert.deepEqual(emittedConfigs.at(-1).virtual_calendars[0].entities, ['calendar.work']);
+});
+
 test('editor color picker Set updates scalar and calendar color config', () => {
   const Editor = customElements.get('skylight-calendar-card-editor');
   const editor = new Editor();

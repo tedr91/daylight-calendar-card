@@ -11868,6 +11868,76 @@ class SkylightCalendarCardEditor extends HTMLElement {
       this.getContrastingEditorColor(this.getEditorCalendarColor(entityId));
   }
 
+  getVirtualCalendarsForEditor() {
+    return Array.isArray(this._config.virtual_calendars) ? this._config.virtual_calendars : [];
+  }
+
+  getRenderableVirtualCalendarsForEditor() {
+    return this.getVirtualCalendarsForEditor()
+      .map((virtualCalendar, index) => ({ virtualCalendar, index }))
+      .filter(({ virtualCalendar }) => virtualCalendar && typeof virtualCalendar === 'object' && !Array.isArray(virtualCalendar));
+  }
+
+  getNextVirtualCalendarId() {
+    const existingIds = new Set(this.getVirtualCalendarsForEditor()
+      .filter((virtualCalendar) => virtualCalendar && typeof virtualCalendar === 'object')
+      .map((virtualCalendar) => String(virtualCalendar.id || '').trim())
+      .filter(Boolean));
+    let index = 1;
+    let candidate = `virtual_${index}`;
+    while (existingIds.has(candidate)) {
+      index += 1;
+      candidate = `virtual_${index}`;
+    }
+    return candidate;
+  }
+
+  sanitizeVirtualCalendarForEditor(virtualCalendar) {
+    const nextVirtualCalendar = {
+      ...(virtualCalendar && typeof virtualCalendar === 'object' ? virtualCalendar : {})
+    };
+
+    nextVirtualCalendar.id = String(nextVirtualCalendar.id || '').trim();
+    nextVirtualCalendar.name = String(nextVirtualCalendar.name || '').trim();
+
+    const icon = String(nextVirtualCalendar.icon || '').trim();
+    if (icon) nextVirtualCalendar.icon = icon;
+    else nextVirtualCalendar.icon = null;
+
+    const color = String(nextVirtualCalendar.color || '').trim();
+    if (color) nextVirtualCalendar.color = color;
+    else nextVirtualCalendar.color = null;
+
+    nextVirtualCalendar.entities = Array.isArray(nextVirtualCalendar.entities)
+      ? nextVirtualCalendar.entities.filter((entityId) => typeof entityId === 'string' && entityId.startsWith('calendar.'))
+      : [];
+
+    return nextVirtualCalendar;
+  }
+
+  getVirtualCalendarIdValidation(index) {
+    const virtualCalendars = this.getVirtualCalendarsForEditor();
+    const virtualCalendar = virtualCalendars[index];
+    if (!virtualCalendar || typeof virtualCalendar !== 'object') return '';
+
+    const id = String(virtualCalendar.id || '').trim();
+    if (!id) return 'ID is required for runtime matching.';
+
+    const duplicateIndex = virtualCalendars.findIndex((otherVirtualCalendar, otherIndex) => (
+      otherIndex !== index &&
+      otherVirtualCalendar &&
+      typeof otherVirtualCalendar === 'object' &&
+      String(otherVirtualCalendar.id || '').trim() === id
+    ));
+
+    return duplicateIndex === -1 ? '' : 'ID duplicates another virtual calendar.';
+  }
+
+  getEditorVirtualCalendarColor(index) {
+    const virtualCalendar = this.getVirtualCalendarsForEditor()[index];
+    return this.toColorInputValue(virtualCalendar?.color);
+  }
+
   getEditorMapColorValue(field, entityId) {
     if (field === 'colors') {
       return this.getEditorCalendarColor(entityId);
@@ -11961,6 +12031,9 @@ class SkylightCalendarCardEditor extends HTMLElement {
   }
 
   getColorValue(field, mapKey = null) {
+    if (field === 'virtual_calendar_color') {
+      return this.getEditorVirtualCalendarColor(Number(mapKey));
+    }
     if (mapKey) {
       return this.getEditorMapColorValue(field, mapKey);
     }
@@ -12050,6 +12123,12 @@ class SkylightCalendarCardEditor extends HTMLElement {
   applyColorPickerColor(hexColor) {
     const { field, mapKey } = this._colorPickerState;
     if (!field) return;
+
+    if (field === 'virtual_calendar_color') {
+      this.updateVirtualCalendar(Number(mapKey), { color: hexColor }, { render: true });
+      this.closeColorPicker();
+      return;
+    }
 
     const nextConfig = { ...this.value };
     if (mapKey) {
@@ -12208,6 +12287,199 @@ class SkylightCalendarCardEditor extends HTMLElement {
         <div class="subsection-content">${content}</div>
       </details>
     `;
+  }
+
+  renderVirtualCalendarsEditor() {
+    const renderableVirtualCalendars = this.getRenderableVirtualCalendarsForEditor();
+
+    return `
+      <div class="virtual-calendars-editor">
+        <p class="helper">Create display-only calendar badges that group one or more configured real calendars.</p>
+        ${renderableVirtualCalendars.length ? renderableVirtualCalendars
+          .map(({ virtualCalendar, index }, renderIndex) => this.renderVirtualCalendarRow(virtualCalendar, index, renderIndex, renderableVirtualCalendars.length))
+          .join('') : '<p class="helper">No virtual calendars configured yet.</p>'}
+        <button type="button" class="secondary-action" data-virtual-calendar-action="add">Add virtual calendar</button>
+      </div>
+    `;
+  }
+
+  renderVirtualCalendarRow(virtualCalendar, index, renderIndex = index, renderCount = this.getRenderableVirtualCalendarsForEditor().length) {
+    const configuredEntities = this.getConfiguredEntitiesForEditor();
+    const configuredEntitySet = new Set(configuredEntities);
+    const selectedEntityValues = Array.isArray(virtualCalendar.entities)
+      ? virtualCalendar.entities.filter((entityId) => typeof entityId === 'string' && entityId.startsWith('calendar.'))
+      : [];
+    const selectedEntities = new Set(selectedEntityValues);
+    const legacyEntities = selectedEntityValues.filter((entityId) => !configuredEntitySet.has(entityId));
+    const virtualCalendarName = String(virtualCalendar.name || '').trim();
+    const virtualCalendarId = String(virtualCalendar.id || '').trim();
+    const virtualCalendarIcon = String(virtualCalendar.icon || '').trim();
+    const virtualCalendarColor = String(virtualCalendar.color || '').trim();
+    const idValidation = this.getVirtualCalendarIdValidation(index);
+    const idValidationMarkup = idValidation
+      ? `<p class="validation-message" id="virtual-calendar-id-error-${index}">${this.escapeHtml(idValidation)}</p>`
+      : '';
+    const colorStatusMarkup = virtualCalendarColor
+      ? `<span class="virtual-calendar-color-status">Override: ${this.escapeHtml(virtualCalendarColor)}</span>`
+      : '<span class="virtual-calendar-color-status no-override">No color override set</span>';
+    const checkboxRows = configuredEntities.map((entityId) => {
+      const displayName = this.escapeHtml(this.getEntityFriendlyName(entityId));
+      const checked = selectedEntities.has(entityId) ? 'checked' : '';
+      return `
+        <label class="list-checkbox-row virtual-calendar-entity-row">
+          <span>${displayName}</span>
+          <input type="checkbox" data-virtual-calendar-entity="true" data-virtual-calendar-index="${index}" value="${this.escapeHtml(entityId)}" ${checked}>
+        </label>
+      `;
+    });
+
+    legacyEntities.forEach((entityId) => {
+      checkboxRows.push(`
+        <label class="list-checkbox-row virtual-calendar-entity-row legacy-entity-row">
+          <span>${this.escapeHtml(entityId)} <em>(not in configured calendars)</em></span>
+          <input type="checkbox" data-virtual-calendar-entity="true" data-virtual-calendar-index="${index}" value="${this.escapeHtml(entityId)}" checked disabled>
+        </label>
+      `);
+    });
+
+    const checkboxMarkup = checkboxRows.length
+      ? checkboxRows.join('')
+      : '<p class="helper">Select at least one real calendar above to include calendars here.</p>';
+
+    return `
+      <div class="virtual-calendar-card" data-virtual-calendar-card="${index}">
+        <div class="virtual-calendar-card-header">
+          <strong>${this.escapeHtml(virtualCalendarName || virtualCalendarId || `Virtual calendar ${renderIndex + 1}`)}</strong>
+          <div class="virtual-calendar-actions">
+            <button type="button" title="Move up" data-virtual-calendar-action="move-up" data-virtual-calendar-index="${index}" ${renderIndex === 0 ? 'disabled' : ''}>↑</button>
+            <button type="button" title="Move down" data-virtual-calendar-action="move-down" data-virtual-calendar-index="${index}" ${renderIndex === renderCount - 1 ? 'disabled' : ''}>↓</button>
+            <button type="button" title="Remove" data-virtual-calendar-action="remove" data-virtual-calendar-index="${index}">Remove</button>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="virtual-calendar-name-${index}">Name</label>
+            <input id="virtual-calendar-name-${index}" type="text" data-virtual-calendar-field="name" data-virtual-calendar-index="${index}" value="${this.escapeHtml(virtualCalendarName)}" placeholder="Virtual Calendar">
+          </div>
+          <div class="field">
+            <label for="virtual-calendar-id-${index}">ID</label>
+            <input id="virtual-calendar-id-${index}" type="text" data-virtual-calendar-field="id" data-virtual-calendar-index="${index}" value="${this.escapeHtml(virtualCalendarId)}" placeholder="virtual_1" ${idValidation ? 'aria-invalid="true"' : ''} ${idValidation ? `aria-describedby="virtual-calendar-id-error-${index}"` : ''}>
+            ${idValidationMarkup}
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="virtual-calendar-icon-${index}">Icon</label>
+            <input id="virtual-calendar-icon-${index}" type="text" data-virtual-calendar-field="icon" data-virtual-calendar-index="${index}" value="${this.escapeHtml(virtualCalendarIcon)}" placeholder="mdi:calendar">
+          </div>
+          <div class="field virtual-calendar-color-field">
+            <label for="virtual-calendar-color-${index}">Color override (optional)</label>
+            <div class="virtual-calendar-color-row">
+              ${this.renderColorInputControl({ id: `virtual-calendar-color-picker-${index}`, field: 'virtual_calendar_color', mapKey: String(index), value: virtualCalendarColor })}
+              <input id="virtual-calendar-color-${index}" type="text" data-virtual-calendar-field="color" data-virtual-calendar-index="${index}" value="${this.escapeHtml(virtualCalendarColor)}" placeholder="#3f51b5">
+              ${colorStatusMarkup}
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Included calendar entities</label>
+          <div class="list-checkbox-grid virtual-calendar-entities">
+            ${checkboxMarkup}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  updateVirtualCalendar(index, patch, { render = false } = {}) {
+    const virtualCalendars = [...this.getVirtualCalendarsForEditor()];
+    if (index < 0 || index >= virtualCalendars.length) return;
+    const currentVirtualCalendar = virtualCalendars[index];
+    if (!currentVirtualCalendar || typeof currentVirtualCalendar !== 'object' || Array.isArray(currentVirtualCalendar)) return;
+
+    virtualCalendars[index] = this.sanitizeVirtualCalendarForEditor({
+      ...currentVirtualCalendar,
+      ...patch
+    });
+
+    this.emitConfigChanged({
+      ...this.value,
+      virtual_calendars: virtualCalendars
+    });
+
+    if (render) this.render();
+    else this.updateFieldValues();
+  }
+
+  addVirtualCalendar() {
+    const virtualCalendars = [...this.getVirtualCalendarsForEditor()];
+    virtualCalendars.push({
+      id: this.getNextVirtualCalendarId(),
+      name: 'Virtual Calendar',
+      icon: null,
+      color: null,
+      entities: []
+    });
+
+    this.emitConfigChanged({
+      ...this.value,
+      virtual_calendars: virtualCalendars
+    });
+    this.render();
+  }
+
+  removeVirtualCalendar(index) {
+    const virtualCalendars = [...this.getVirtualCalendarsForEditor()];
+    if (index < 0 || index >= virtualCalendars.length) return;
+    virtualCalendars.splice(index, 1);
+
+    this.emitConfigChanged({
+      ...this.value,
+      virtual_calendars: virtualCalendars
+    });
+    this.render();
+  }
+
+  moveVirtualCalendar(index, direction) {
+    const renderableVirtualCalendars = this.getRenderableVirtualCalendarsForEditor();
+    const renderIndex = renderableVirtualCalendars.findIndex((entry) => entry.index === index);
+    const swapEntry = renderableVirtualCalendars[renderIndex + direction];
+    const virtualCalendars = [...this.getVirtualCalendarsForEditor()];
+    if (renderIndex === -1 || !swapEntry || index < 0 || index >= virtualCalendars.length) return;
+    [virtualCalendars[index], virtualCalendars[swapEntry.index]] = [virtualCalendars[swapEntry.index], virtualCalendars[index]];
+
+    this.emitConfigChanged({
+      ...this.value,
+      virtual_calendars: virtualCalendars
+    });
+    this.render();
+  }
+
+  handleVirtualCalendarAction(event) {
+    const action = event.currentTarget.dataset.virtualCalendarAction;
+    const index = Number(event.currentTarget.dataset.virtualCalendarIndex);
+    if (action === 'add') this.addVirtualCalendar();
+    else if (action === 'remove') this.removeVirtualCalendar(index);
+    else if (action === 'move-up') this.moveVirtualCalendar(index, -1);
+    else if (action === 'move-down') this.moveVirtualCalendar(index, 1);
+  }
+
+  handleVirtualCalendarInput(event) {
+    const index = Number(event.target.dataset.virtualCalendarIndex);
+    const field = event.target.dataset.virtualCalendarField;
+    if (!field) return;
+    const value = String(event.target.value || '').trim();
+    this.updateVirtualCalendar(index, {
+      [field]: field === 'icon' || field === 'color' ? (value || null) : value
+    }, { render: field === 'id' || field === 'name' || field === 'color' });
+  }
+
+  handleVirtualCalendarEntityChange(event) {
+    const index = Number(event.target.dataset.virtualCalendarIndex);
+    const checkedEntities = Array.from(this.querySelectorAll(`input[data-virtual-calendar-entity][data-virtual-calendar-index="${index}"]:checked`))
+      .map((input) => input.value)
+      .filter((entityId) => typeof entityId === 'string' && entityId.startsWith('calendar.'));
+    this.updateVirtualCalendar(index, { entities: checkedEntities });
   }
 
   renderWeekdayCheckboxes() {
@@ -12528,6 +12800,7 @@ class SkylightCalendarCardEditor extends HTMLElement {
       ${this.renderSubSection('Read-only calendars', `<div class="list-checkbox-grid">${this.renderCalendarListCheckboxes('readonly_calendars', { label: 'read-only calendars' })}</div>`)}
       ${this.renderSubSection('Hide header badges for calendars', `<div class="list-checkbox-grid">${this.renderCalendarListCheckboxes('hide_badge_calendars', { label: 'hidden header badges calendars' })}</div>`)}
       ${this.renderSubSection('Calendars hidden by default', `<div class="list-checkbox-grid">${this.renderCalendarListCheckboxes('default_hidden_calendars', { label: 'calendars hidden by default' })}</div>`)}
+      ${this.renderSubSection('Virtual calendars', this.renderVirtualCalendarsEditor())}
     `);
 
     const localeSection = this.renderSection('Localization & preferences', `
@@ -12667,6 +12940,91 @@ class SkylightCalendarCardEditor extends HTMLElement {
 
         .list-checkbox-row input[type="checkbox"] {
           justify-self: end;
+        }
+
+        .virtual-calendars-editor {
+          display: grid;
+          gap: 10px;
+        }
+
+        .virtual-calendar-card {
+          border: 1px solid var(--divider-color);
+          border-radius: 8px;
+          padding: 10px;
+          background: var(--card-background-color);
+          display: grid;
+          gap: 10px;
+        }
+
+        .virtual-calendar-card-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+
+        .virtual-calendar-actions {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+
+        .virtual-calendar-actions button,
+        .secondary-action {
+          border: 1px solid var(--divider-color);
+          background: var(--card-background-color);
+          border-radius: 6px;
+          padding: 6px 10px;
+          cursor: pointer;
+          color: var(--primary-text-color);
+          font: inherit;
+        }
+
+        .virtual-calendar-actions button:disabled {
+          cursor: default;
+          opacity: 0.45;
+        }
+
+        .virtual-calendar-color-row {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          gap: 8px;
+          align-items: center;
+        }
+
+        .virtual-calendar-color-status {
+          grid-column: 1 / -1;
+          color: var(--secondary-text-color);
+          font-size: 0.85rem;
+        }
+
+        .virtual-calendar-color-status.no-override {
+          font-style: italic;
+        }
+
+        .virtual-calendar-entities {
+          border: 1px solid var(--divider-color);
+          border-radius: 6px;
+          padding: 8px;
+        }
+
+        .legacy-entity-row {
+          color: var(--secondary-text-color);
+        }
+
+        .legacy-entity-row em {
+          font-size: 0.85rem;
+        }
+
+        .validation-message {
+          color: var(--error-color, #db4437);
+          font-size: 0.85rem;
+          margin: 2px 0 0;
+        }
+
+        input[aria-invalid="true"] {
+          border-color: var(--error-color, #db4437);
         }
 
         .color-picker-wrap {
@@ -12966,6 +13324,18 @@ class SkylightCalendarCardEditor extends HTMLElement {
       input.addEventListener('change', (event) => this.handleChange(event));
     });
 
+    this.querySelectorAll('[data-virtual-calendar-action]').forEach((button) => {
+      button.addEventListener('click', (event) => this.handleVirtualCalendarAction(event));
+    });
+
+    this.querySelectorAll('[data-virtual-calendar-field]').forEach((input) => {
+      input.addEventListener('change', (event) => this.handleVirtualCalendarInput(event));
+    });
+
+    this.querySelectorAll('[data-virtual-calendar-entity]').forEach((input) => {
+      input.addEventListener('change', (event) => this.handleVirtualCalendarEntityChange(event));
+    });
+
     this.querySelectorAll('[data-color-trigger]').forEach((trigger) => {
       trigger.addEventListener('click', () => this.openColorPicker(trigger.dataset.colorField, trigger.dataset.colorMapKey || null));
     });
@@ -13153,6 +13523,21 @@ class SkylightCalendarCardEditor extends HTMLElement {
       const mapKey = input.dataset.mapKey;
       const value = this.getMapFieldValue(mapField)[mapKey] || '';
       input.value = value;
+    });
+
+    this.querySelectorAll('[data-virtual-calendar-field]').forEach((input) => {
+      if (document.activeElement === input) return;
+      const index = Number(input.dataset.virtualCalendarIndex);
+      const field = input.dataset.virtualCalendarField;
+      const virtualCalendar = this.getVirtualCalendarsForEditor()[index] || {};
+      input.value = virtualCalendar[field] || '';
+    });
+
+    this.querySelectorAll('[data-virtual-calendar-entity]').forEach((checkbox) => {
+      const index = Number(checkbox.dataset.virtualCalendarIndex);
+      const virtualCalendar = this.getVirtualCalendarsForEditor()[index] || {};
+      const entities = Array.isArray(virtualCalendar.entities) ? virtualCalendar.entities : [];
+      checkbox.checked = entities.includes(checkbox.value);
     });
 
     this.querySelectorAll('.selected-color-swatch').forEach((swatch) => {
