@@ -796,6 +796,97 @@ test('event_styles apply rule priority and match logic', () => {
   assert.equal(card.eventMatchesRule(event, { title: 'meeting', not: { title: 'holiday' } }), true);
 });
 
+test('event_styles supports past matcher for past and future events', () => {
+  const card = makeCard({ entities: ['calendar.a'] });
+  const pastEvent = { entityId: 'calendar.a', color: '#f00', summary: 'Past Event', start: { dateTime: '2000-05-01T10:00:00Z' }, end: { dateTime: '2000-05-01T11:00:00Z' } };
+  const futureEvent = { entityId: 'calendar.a', color: '#0f0', summary: 'Future Event', start: { dateTime: '2999-05-01T10:00:00Z' }, end: { dateTime: '2999-05-01T11:00:00Z' } };
+
+  assert.equal(card.eventMatchesRule(pastEvent, { past: true }), true);
+  assert.equal(card.eventMatchesRule(futureEvent, { past: true }), false);
+  assert.equal(card.eventMatchesRule(futureEvent, { past: false }), true);
+  assert.equal(card.eventMatchesRule(pastEvent, { past: 'true' }), true);
+  assert.equal(card.eventMatchesRule(futureEvent, { past: 'false' }), true);
+});
+
+test('event_styles supports past matcher inside logical all and not wrappers', () => {
+  const card = makeCard({ entities: ['calendar.a'] });
+  const pastEvent = { entityId: 'calendar.a', color: '#f00', summary: 'Past Meeting', start: { dateTime: '2000-05-01T10:00:00Z' }, end: { dateTime: '2000-05-01T11:00:00Z' } };
+  const futureEvent = { entityId: 'calendar.a', color: '#0f0', summary: 'Future Meeting', start: { dateTime: '2999-05-01T10:00:00Z' }, end: { dateTime: '2999-05-01T11:00:00Z' } };
+
+  assert.equal(card.eventMatchesRule(pastEvent, { all: [{ past: true }, { title: 'meeting' }] }), true);
+  assert.equal(card.eventMatchesRule(futureEvent, { all: [{ past: true }, { title: 'meeting' }] }), false);
+  assert.equal(card.eventMatchesRule(futureEvent, { not: { past: true } }), true);
+  assert.equal(card.eventMatchesRule(pastEvent, { not: { past: true } }), false);
+});
+
+test('event_styles applies custom opacity and filter to past events only', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    event_styles: [{ match: { past: true }, style: { opacity: 0.35, filter: ' grayscale(80%) ' } }]
+  });
+  const pastEvent = { entityId: 'calendar.a', color: '#f00', summary: 'Past Event', start: { dateTime: '2000-05-01T10:00:00Z' }, end: { dateTime: '2000-05-01T11:00:00Z' } };
+  const futureEvent = { entityId: 'calendar.a', color: '#0f0', summary: 'Future Event', start: { dateTime: '2999-05-01T10:00:00Z' }, end: { dateTime: '2999-05-01T11:00:00Z' } };
+
+  assert.match(card.getEventStyle(pastEvent), /opacity: 0\.35/);
+  assert.match(card.getEventStyle(pastEvent), /filter: grayscale\(80%\)/);
+  assert.doesNotMatch(card.getEventStyle(futureEvent), /opacity: 0\.35/);
+  assert.doesNotMatch(card.getEventStyle(futureEvent), /filter: grayscale\(80%\)/);
+});
+
+test('event_styles custom opacity and filter override muted past event defaults', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    past_event_mode: 'muted',
+    event_styles: [{ match: { past: true }, style: { opacity: '0.35', filter: 'grayscale(80%)' } }]
+  });
+  const pastEvent = { entityId: 'calendar.a', color: '#f00', summary: 'Past Event', start: { dateTime: '2000-05-01T10:00:00Z' }, end: { dateTime: '2000-05-01T11:00:00Z' } };
+  const style = card.getEventStyle(pastEvent);
+
+  assert.match(style, /opacity: 0\.35/);
+  assert.match(style, /filter: grayscale\(80%\)/);
+  assert.doesNotMatch(style, /opacity: 0\.55/);
+  assert.doesNotMatch(style, /filter: grayscale\(70%\) saturate\(45%\)/);
+});
+
+test('event_styles ignores invalid opacity and filter values', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    event_styles: [
+      { match: { title: 'bad opacity' }, style: { opacity: 'opaque', filter: 'blur(2px); color: red' } },
+      { match: { title: 'bad filter' }, style: { opacity: 0.4, filter: '<script>' } },
+      { match: { title: 'empty filter' }, style: { filter: '   ' } }
+    ]
+  });
+  const badOpacityEvent = { entityId: 'calendar.a', color: '#f00', summary: 'Bad Opacity', start: { dateTime: '2999-05-01T10:00:00Z' }, end: { dateTime: '2999-05-01T11:00:00Z' } };
+  const badFilterEvent = { entityId: 'calendar.a', color: '#0f0', summary: 'Bad Filter', start: { dateTime: '2999-05-02T10:00:00Z' }, end: { dateTime: '2999-05-02T11:00:00Z' } };
+  const emptyFilterEvent = { entityId: 'calendar.a', color: '#00f', summary: 'Empty Filter', start: { dateTime: '2999-05-03T10:00:00Z' }, end: { dateTime: '2999-05-03T11:00:00Z' } };
+
+  assert.doesNotMatch(card.getEventStyle(badOpacityEvent), /opacity:/);
+  assert.doesNotMatch(card.getEventStyle(badOpacityEvent), /filter:/);
+  assert.match(card.getEventStyle(badFilterEvent), /opacity: 0\.4/);
+  assert.doesNotMatch(card.getEventStyle(badFilterEvent), /filter:/);
+  assert.doesNotMatch(card.getEventStyle(emptyFilterEvent), /filter:/);
+});
+
+test('event_styles style hide with past matcher hides normally but keeps includeHiddenStyledEvents access', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    event_styles: [{ match: { past: true }, style: 'hide' }]
+  });
+  card._events = [
+    { entityId: 'calendar.a', color: '#f00', summary: 'Past Hidden Event', start: { dateTime: '2000-05-01T10:00:00Z' }, end: { dateTime: '2000-05-01T11:00:00Z' } },
+    { entityId: 'calendar.a', color: '#0f0', summary: 'Future Visible Event', start: { dateTime: '2999-05-01T10:00:00Z' }, end: { dateTime: '2999-05-01T11:00:00Z' } }
+  ];
+
+  const pastDay = new Date('2000-05-01T00:00:00Z');
+  const visibleEvents = card.getEventsForDay(pastDay);
+  const styledEvents = card.getEventsForDay(pastDay, { includeHiddenStyledEvents: true });
+
+  assert.equal(visibleEvents.length, 0);
+  assert.equal(styledEvents.length, 1);
+  assert.equal(styledEvents[0].summary, 'Past Hidden Event');
+});
+
 test('event_styles supports `style: hide` and keeps hidden events available for day_badges matching', () => {
   const card = makeCard({
     entities: ['calendar.a'],

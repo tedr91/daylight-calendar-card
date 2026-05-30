@@ -2113,6 +2113,12 @@ class SkylightCalendarCard extends HTMLElement {
     const normalizedFontColor = this.normalizeSingleColor(style.event_font_color ?? style.font_color);
     if (normalizedFontColor) normalized.event_font_color = normalizedFontColor;
 
+    const normalizedOpacity = this.normalizeEventStyleOpacity(style.opacity);
+    if (normalizedOpacity !== null) normalized.opacity = normalizedOpacity;
+
+    const normalizedFilter = this.normalizeEventStyleFilter(style.filter);
+    if (normalizedFilter !== null) normalized.filter = normalizedFilter;
+
     setIfDefined('event_font_size', style.event_font_size);
     setIfDefined('event_time_font_size', style.event_time_font_size);
     setIfDefined('event_location_font_size', style.event_location_font_size);
@@ -2131,6 +2137,21 @@ class SkylightCalendarCard extends HTMLElement {
     if (hideEvent !== null) normalized.hide = hideEvent;
     if (style.event_title_prefix !== undefined) normalized.event_title_prefix = this.normalizeEventTitlePrefixMode(style.event_title_prefix);
 
+    return normalized;
+  }
+
+  normalizeEventStyleOpacity(opacityValue) {
+    if (opacityValue === undefined || opacityValue === null || opacityValue === '') return null;
+    const numericOpacity = Number(opacityValue);
+    if (!Number.isFinite(numericOpacity)) return null;
+    return Math.max(0, Math.min(1, numericOpacity));
+  }
+
+  normalizeEventStyleFilter(filterValue) {
+    if (filterValue === undefined || filterValue === null) return null;
+    const normalized = String(filterValue).trim();
+    if (!normalized) return null;
+    if (/[;{}<>]/.test(normalized)) return null;
     return normalized;
   }
 
@@ -2199,6 +2220,10 @@ class SkylightCalendarCard extends HTMLElement {
     if (fieldName === 'all_day') {
       const { isAllDay } = this.getEventDateTimeInfo(event);
       return this.matchPrimitiveCondition(isAllDay, condition);
+    }
+
+    if (fieldName === 'past') {
+      return this.matchPrimitiveCondition(this.isPastEvent(event), condition);
     }
 
     if (fieldName === 'calendar') {
@@ -8041,10 +8066,22 @@ class SkylightCalendarCard extends HTMLElement {
     const borderStyle = shouldShowBorderAccent
       ? `border-left: 4px solid ${primaryColor};`
       : 'border-left: none;';
-    const mutedStyle = this._config?.past_event_mode === 'muted' && this.isPastEvent(event)
-      ? 'opacity: 0.55; filter: grayscale(70%) saturate(45%);'
-      : '';
-    const finalizeStyle = (style) => `${style} ${mutedStyle}`.trim();
+    const extraStyleParts = [];
+    const isMutedPastEvent = this._config?.past_event_mode === 'muted' && this.isPastEvent(event);
+    if (isMutedPastEvent && styleOverrides?.opacity === undefined) {
+      extraStyleParts.push('opacity: 0.55;');
+    }
+    if (isMutedPastEvent && styleOverrides?.filter === undefined) {
+      extraStyleParts.push('filter: grayscale(70%) saturate(45%);');
+    }
+    if (styleOverrides?.opacity !== undefined) {
+      extraStyleParts.push(`opacity: ${styleOverrides.opacity};`);
+    }
+    if (styleOverrides?.filter !== undefined) {
+      extraStyleParts.push(`filter: ${styleOverrides.filter};`);
+    }
+    const extraStyle = extraStyleParts.join(' ');
+    const finalizeStyle = (style) => `${style} ${extraStyle}`.trim();
 
     const eventColorMode = this.normalizeEventColorMode(this._config?.event_color_mode);
     if (visibleColors.length <= 1) {
