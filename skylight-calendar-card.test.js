@@ -854,17 +854,25 @@ test('event_styles ignores invalid opacity and filter values', () => {
     event_styles: [
       { match: { title: 'bad opacity' }, style: { opacity: 'opaque', filter: 'blur(2px); color: red' } },
       { match: { title: 'bad filter' }, style: { opacity: 0.4, filter: '<script>' } },
+      { match: { title: 'double quote attack' }, style: { opacity: 0.5, filter: 'blur(1px)" onmouseover="alert(1)' } },
+      { match: { title: 'single quoted filter' }, style: { opacity: 0.6, filter: "blur(1px)' onmouseover='alert(1)" } },
       { match: { title: 'empty filter' }, style: { filter: '   ' } }
     ]
   });
   const badOpacityEvent = { entityId: 'calendar.a', color: '#f00', summary: 'Bad Opacity', start: { dateTime: '2999-05-01T10:00:00Z' }, end: { dateTime: '2999-05-01T11:00:00Z' } };
   const badFilterEvent = { entityId: 'calendar.a', color: '#0f0', summary: 'Bad Filter', start: { dateTime: '2999-05-02T10:00:00Z' }, end: { dateTime: '2999-05-02T11:00:00Z' } };
-  const emptyFilterEvent = { entityId: 'calendar.a', color: '#00f', summary: 'Empty Filter', start: { dateTime: '2999-05-03T10:00:00Z' }, end: { dateTime: '2999-05-03T11:00:00Z' } };
+  const quotedFilterEvent = { entityId: 'calendar.a', color: '#00f', summary: 'Double Quote Attack', start: { dateTime: '2999-05-03T10:00:00Z' }, end: { dateTime: '2999-05-03T11:00:00Z' } };
+  const singleQuotedFilterEvent = { entityId: 'calendar.a', color: '#ff0', summary: 'Single Quoted Filter', start: { dateTime: '2999-05-04T10:00:00Z' }, end: { dateTime: '2999-05-04T11:00:00Z' } };
+  const emptyFilterEvent = { entityId: 'calendar.a', color: '#0ff', summary: 'Empty Filter', start: { dateTime: '2999-05-05T10:00:00Z' }, end: { dateTime: '2999-05-05T11:00:00Z' } };
 
   assert.doesNotMatch(card.getEventStyle(badOpacityEvent), /opacity:/);
   assert.doesNotMatch(card.getEventStyle(badOpacityEvent), /filter:/);
   assert.match(card.getEventStyle(badFilterEvent), /opacity: 0\.4/);
   assert.doesNotMatch(card.getEventStyle(badFilterEvent), /filter:/);
+  assert.match(card.getEventStyle(quotedFilterEvent), /opacity: 0\.5/);
+  assert.doesNotMatch(card.getEventStyle(quotedFilterEvent), /filter:/);
+  assert.match(card.getEventStyle(singleQuotedFilterEvent), /opacity: 0\.6/);
+  assert.doesNotMatch(card.getEventStyle(singleQuotedFilterEvent), /filter:/);
   assert.doesNotMatch(card.getEventStyle(emptyFilterEvent), /filter:/);
 });
 

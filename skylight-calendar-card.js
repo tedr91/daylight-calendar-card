@@ -2151,7 +2151,7 @@ class SkylightCalendarCard extends HTMLElement {
     if (filterValue === undefined || filterValue === null) return null;
     const normalized = String(filterValue).trim();
     if (!normalized) return null;
-    if (/[;{}<>]/.test(normalized)) return null;
+    if (/[;{}<>\"']/.test(normalized)) return null;
     return normalized;
   }
 
