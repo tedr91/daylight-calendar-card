@@ -2131,6 +2131,15 @@ class SkylightCalendarCard extends HTMLElement {
     setIfDefined('event_time_font_size', style.event_time_font_size);
     setIfDefined('event_location_font_size', style.event_location_font_size);
 
+    const icon = this.normalizeEventIconName(style.icon);
+    if (icon) normalized.icon = icon;
+    const iconColor = this.normalizeEventIconColor(style.icon_color);
+    if (iconColor) normalized.icon_color = iconColor;
+    const iconSize = this.normalizeStyleSizeValue(style.icon_size);
+    if (iconSize) normalized.icon_size = iconSize;
+    const iconPosition = this.normalizeEventIconPosition(style.icon_position);
+    if (iconPosition) normalized.icon_position = iconPosition;
+
     const showEventLocation = this.normalizeBooleanStyleValue(style.show_event_location);
     if (showEventLocation !== null) normalized.show_event_location = showEventLocation;
     const useShortLocation = this.normalizeBooleanStyleValue(style.use_short_location);
@@ -2146,6 +2155,29 @@ class SkylightCalendarCard extends HTMLElement {
     if (style.event_title_prefix !== undefined) normalized.event_title_prefix = this.normalizeEventTitlePrefixMode(style.event_title_prefix);
 
     return normalized;
+  }
+
+  normalizeEventIconName(iconValue) {
+    const normalized = this.normalizeEventTextValue(iconValue);
+    if (!normalized) return null;
+    if (!/^mdi:[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalized)) return null;
+    return normalized;
+  }
+
+  normalizeEventIconColor(colorValue) {
+    if (colorValue === undefined || colorValue === null) return null;
+    const normalized = this.normalizeSingleColor(colorValue);
+    const trimmed = String(normalized || '').trim();
+    if (!trimmed) return null;
+    if (/[;{}<>\"']/.test(trimmed)) return null;
+    return trimmed;
+  }
+
+  normalizeEventIconPosition(positionValue) {
+    const normalized = String(positionValue || '').trim().toLowerCase();
+    if (!normalized) return null;
+    if (normalized === 'before_title' || normalized === 'corner') return normalized;
+    return null;
   }
 
   normalizeEventStyleOpacity(opacityValue) {
@@ -4438,6 +4470,32 @@ class SkylightCalendarCard extends HTMLElement {
         align-items: center;
         gap: clamp(4px, calc(var(--event-bubble-font-size, 11px) * 0.3), 7px);
         min-width: 0;
+      }
+
+      .event-style-icon {
+        color: inherit;
+        flex: 0 0 auto;
+      }
+
+      .event-style-icon-before-title {
+        --mdc-icon-size: var(--event-style-icon-size, 1em);
+        width: var(--mdc-icon-size);
+        height: var(--mdc-icon-size);
+        font-size: var(--mdc-icon-size);
+        line-height: 1;
+      }
+
+      .event-style-icon-corner {
+        --mdc-icon-size: var(--event-style-icon-size, var(--event-bubble-font-size, 14px));
+        position: absolute;
+        right: 6px;
+        bottom: 4px;
+        width: var(--mdc-icon-size);
+        height: var(--mdc-icon-size);
+        font-size: var(--mdc-icon-size);
+        line-height: 1;
+        pointer-events: none;
+        z-index: 2;
       }
 
       .event-title-prefix-friendly-name {
@@ -6782,6 +6840,7 @@ class SkylightCalendarCard extends HTMLElement {
                   ${this.shouldShowEventTime(event) ? `<div class="agenda-event-time">${timeLabel}</div>` : ''}
                   ${this.shouldShowEventLocation(event) ? `<div class="agenda-event-location">📍 ${this.escapeHtml(this.getDisplayLocation(event.location, event))}</div>` : ''}
                   ${this.renderEventIcon(event)}
+                  ${this.renderEventStyleCornerIcon(event)}
                   ${this.renderCombinedCornerBubbles(event)}
                 </div>
               `;
@@ -7009,6 +7068,7 @@ class SkylightCalendarCard extends HTMLElement {
                  style="${eventStyle} --event-bubble-font-size: ${this.getEventBubbleFontSize(event)}; --event-time-font-size: ${this.getEventTimeFontSize(event)}; --event-bubble-text-color: ${this.getEventBubbleFontColor(event)}; --all-day-title-span-days: ${visibleDaySpan}; --all-day-title-gap-count: ${Math.max(visibleDaySpan - 1, 0)};"
                  data-event='${JSON.stringify(event).replace(/'/g, "&#39;")}'>
               <div class="all-day-event-title ${showTitle && visibleDaySpan > 1 ? 'spans-multiple-days' : ''}">${showTitle ? this.renderEventTitleWithPrefix(event, displayTitle || event.summary || this.t('untitledEvent')) : ''}</div>
+              ${this.renderEventStyleCornerIcon(event)}
             </div>
           `;
         }).join('') : ''}
@@ -7133,6 +7193,7 @@ class SkylightCalendarCard extends HTMLElement {
           ${this.shouldShowEventTime(event) ? `<div class="week-standard-event-time">${this.formatEventTimeRange(eventStart, eventEnd, { schedule: true })}</div>` : ''}
           ${this.shouldShowEventLocation(event) ? `<div class="week-standard-event-location">📍 ${this.escapeHtml(this.getDisplayLocation(event.location, event))}</div>` : ''}
           ${this.renderEventIcon(event)}
+          ${this.renderEventStyleCornerIcon(event)}
           ${this.renderCombinedCornerBubbles(event)}
         </div>
       `;
@@ -7249,13 +7310,44 @@ class SkylightCalendarCard extends HTMLElement {
     return `<div class="combined-corner-bubbles">${bubblesHtml}</div>`;
   }
 
+  getEventStyleIconConfig(event) {
+    const styleOverrides = this.getEventStyleOverrides(event);
+    const icon = this.normalizeEventIconName(styleOverrides?.icon);
+    if (!icon) return null;
+
+    return {
+      icon,
+      color: this.normalizeEventIconColor(styleOverrides?.icon_color),
+      size: this.normalizeStyleSizeValue(styleOverrides?.icon_size),
+      position: this.normalizeEventIconPosition(styleOverrides?.icon_position) || 'before_title'
+    };
+  }
+
+  renderEventStyleIcon(event, { position = 'before_title' } = {}) {
+    const iconConfig = this.getEventStyleIconConfig(event);
+    if (!iconConfig || iconConfig.position !== position) return '';
+
+    const styleParts = [];
+    if (iconConfig.color) styleParts.push(`color: ${iconConfig.color};`);
+    if (iconConfig.size) styleParts.push(`--event-style-icon-size: ${iconConfig.size};`);
+    const styleAttr = styleParts.length ? ` style="${styleParts.join(' ')}"` : '';
+    const className = position === 'corner' ? 'event-style-icon event-style-icon-corner' : 'event-style-icon event-style-icon-before-title';
+    return `<ha-icon class="${className}" icon="${this.escapeHtml(iconConfig.icon)}"${styleAttr}></ha-icon>`;
+  }
+
+  renderEventStyleCornerIcon(event) {
+    return this.renderEventStyleIcon(event, { position: 'corner' });
+  }
+
   renderEventTitleWithPrefix(event, title) {
     const titleText = this.escapeHtml(title || this.t('untitledEvent'));
     const styleOverrides = this.getEventStyleOverrides(event);
+    const titleIcon = this.renderEventStyleIcon(event, { position: 'before_title' });
+    const titleHtml = titleIcon ? `${titleIcon}<span>${titleText}</span>` : titleText;
     const prefixMode = this.normalizeEventTitlePrefixMode(styleOverrides?.event_title_prefix ?? this._config.event_title_prefix);
     const visibleBadges = this.getModalCalendarBadgesForEvent(event);
     if (prefixMode === 'none' || visibleBadges.length === 0) {
-      return titleText;
+      return titleIcon ? `<span class="event-title-with-prefix">${titleHtml}</span>` : titleText;
     }
 
     if (prefixMode === 'friendly_name') {
@@ -7264,7 +7356,7 @@ class SkylightCalendarCard extends HTMLElement {
         .filter(Boolean);
       const uniqueCalendarNames = Array.from(new Set(calendarNames));
       const calendarNameLabel = this.escapeHtml(uniqueCalendarNames.join(', '));
-      return `<span class="event-title-with-prefix"><span class="event-title-prefix-friendly-name">${calendarNameLabel}:</span><span>${titleText}</span></span>`;
+      return `<span class="event-title-with-prefix"><span class="event-title-prefix-friendly-name">${calendarNameLabel}:</span>${titleHtml}</span>`;
     }
 
     const badgesHtml = visibleBadges.map((calendar) => {
@@ -7283,7 +7375,7 @@ class SkylightCalendarCard extends HTMLElement {
       return `<span class="event-title-prefix-badge" style="background: ${iconColor}; color: white;">${badgeIconHtml}</span>`;
     }).join('');
 
-    return `<span class="event-title-with-prefix"><span class="event-title-prefix-badges">${badgesHtml}</span><span>${titleText}</span></span>`;
+    return `<span class="event-title-with-prefix"><span class="event-title-prefix-badges">${badgesHtml}</span>${titleHtml}</span>`;
   }
 
 
@@ -7874,6 +7966,7 @@ class SkylightCalendarCard extends HTMLElement {
         ${this.shouldShowEventTime(event) ? `<div class="week-compact-event-time">${timeLabel}</div>` : ''}
         <div class="week-compact-event-title">${this.renderEventTitleWithPrefix(event, event.summary || this.t('untitledEvent'))}</div>
         ${this.shouldShowEventLocation(event) ? `<div class="week-compact-event-location">📍 ${this.escapeHtml(this.getDisplayLocation(event.location, event))}</div>` : ''}
+        ${this.renderEventStyleCornerIcon(event)}
         ${this.renderCombinedCornerBubbles(event)}
       </div>
     `;
@@ -7889,6 +7982,7 @@ class SkylightCalendarCard extends HTMLElement {
       <div class="event" style="${eventStyle}; --event-bubble-font-size: ${this.getEventBubbleFontSize(event)}; --event-time-font-size: ${this.getEventTimeFontSize(event)}; --event-bubble-text-color: ${this.getEventBubbleFontColor(event)};" data-event='${JSON.stringify(event).replace(/'/g, "&#39;")}'>
         ${!isAllDaySegment && this.shouldShowEventTime(event) ? `<span class="event-time">${this.formatEventTime(segmentStart)}</span>` : ''}
         ${this.renderEventTitleWithPrefix(event, event.summary || this.t('untitledEvent'))}
+        ${this.renderEventStyleCornerIcon(event)}
         ${this.renderCombinedCornerBubbles(event)}
       </div>
     `;
@@ -10827,6 +10921,7 @@ class SkylightCalendarCard extends HTMLElement {
                   ${this.shouldShowEventTime(event) ? `${this.shouldShowEventTime(event) ? `<div class="week-compact-event-time">${timeLabel}</div>` : ''}` : ''}
                   <div class="week-compact-event-title">${this.renderEventTitleWithPrefix(event, event.summary || this.t('untitledEvent'))}</div>
                   ${this.shouldShowEventLocation(event) ? `<div class="week-compact-event-location">📍 ${this.escapeHtml(this.getDisplayLocation(event.location, event))}</div>` : ''}
+                  ${this.renderEventStyleCornerIcon(event)}
                   ${this.renderCombinedCornerBubbles(event)}
                 </div>
               `;
@@ -10876,6 +10971,7 @@ class SkylightCalendarCard extends HTMLElement {
               <div class="day-modal-event-title">${this.renderEventTitleWithPrefix(event, event.summary || this.t('untitledEvent'))}</div>
               ${this.shouldShowEventTime(event) ? `<div class="day-modal-event-meta">${isAllDaySegment ? this.t('allDay') : this.formatEventTimeRange(segmentStart, segmentEnd)}</div>` : ''}
               ${this.shouldShowEventLocation(event) ? `<div class="day-modal-event-location">📍 ${this.escapeHtml(this.getDisplayLocation(event.location, event))}</div>` : ''}
+              ${this.renderEventStyleCornerIcon(event)}
               ${this.renderCombinedCornerBubbles(event)}
             </div>
           `;
@@ -11793,7 +11889,6 @@ class SkylightCalendarCardEditor extends HTMLElement {
   getListInputValue(key) {
     return this.getListFieldValue(key).join(', ');
   }
-
 
   getEditorDefaultValue(key) {
     const defaults = {
