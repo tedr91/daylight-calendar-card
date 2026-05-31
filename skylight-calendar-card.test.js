@@ -393,6 +393,81 @@ test('setConfig normalizes fallback values and aliases', () => {
 });
 
 
+test('normalizes enum helper aliases and fallbacks consistently', () => {
+  const card = makeCard();
+
+  assert.equal(card.normalizeDefaultDarkMode(true), 'dark');
+  assert.equal(card.normalizeDefaultDarkMode(false), 'auto');
+  assert.equal(card.normalizeDefaultDarkMode(' DARK '), 'dark');
+  assert.equal(card.normalizeDefaultDarkMode('light'), 'light');
+  assert.equal(card.normalizeDefaultDarkMode('invalid'), 'auto');
+  assert.equal(card.normalizeEventTitlePrefixMode('icon'), 'badge_icon');
+  assert.equal(card.normalizeEventTitlePrefixMode('badgeicon'), 'badge_icon');
+  assert.equal(card.normalizeEventTitlePrefixMode('badgeIcon'), 'badge_icon');
+  assert.equal(card.normalizeEventTitlePrefixMode('friendlyname'), 'friendly_name');
+  assert.equal(card.normalizeEventTitlePrefixMode('friendlyName'), 'friendly_name');
+  assert.equal(card.normalizeEventTitlePrefixMode('friendly_name'), 'friendly_name');
+  assert.equal(card.normalizeEventTitlePrefixMode('bad-value'), 'none');
+  assert.equal(card.normalizePastEventMode(' muted '), 'muted');
+  assert.equal(card.normalizePastEventMode('bad-value'), 'none');
+  assert.equal(card.normalizeCombineStyle('DOTS'), 'dots');
+  assert.equal(card.normalizeCombineStyle('zebra'), 'bars');
+  assert.equal(card.normalizeEventColorMode('left-neutral'), 'left-neutral');
+  assert.equal(card.normalizeEventColorMode('bad-value'), 'classic');
+});
+
+test('normalizes css length helpers while preserving size and border width rules', () => {
+  const card = makeCard();
+
+  assert.equal(card.normalizeStyleSizeValue(5), '5px');
+  assert.equal(card.normalizeStyleSizeValue(12), '12px');
+  assert.equal(card.normalizeStyleSizeValue('5rem'), '5rem');
+  assert.equal(card.normalizeStyleSizeValue(' 1.25rem '), '1.25rem');
+  assert.equal(card.normalizeStyleSizeValue('50%'), '50%');
+  assert.equal(card.normalizeStyleSizeValue('14'), '14px');
+  assert.equal(card.normalizeStyleSizeValue(0), null);
+  assert.equal(card.normalizeStyleSizeValue('0px'), '0px');
+  assert.equal(card.normalizeStyleSizeValue('bad'), null);
+  assert.equal(card.normalizeStyleBorderWidth(0), '0px');
+  assert.equal(card.normalizeStyleBorderWidth(-5), '0px');
+  assert.equal(card.normalizeStyleBorderWidth(-2), '0px');
+  assert.equal(card.normalizeStyleBorderWidth('0'), '0px');
+  assert.equal(card.normalizeStyleBorderWidth('2em'), '2em');
+  assert.equal(card.normalizeStyleBorderWidth('-2'), null);
+});
+
+test('event font size wrappers share fallback and override behavior', () => {
+  const card = makeCard({
+    entities: ['calendar.family'],
+    event_font_size: 13,
+    event_time_font_size: ' 0.75rem ',
+    event_location_font_size: ''
+  });
+
+  assert.equal(card.getEventBubbleFontSize(), '13px');
+  assert.equal(card.getEventTimeFontSize(), '0.75rem');
+  assert.equal(card.getEventLocationFontSize(), '9px');
+  assert.equal(card.getEventFontSize(), '13px');
+  assert.equal(card.getEventFontSize(null, 'missing_font_size', 14), '14px');
+
+  const originalGetEventStyleOverrides = card.getEventStyleOverrides.bind(card);
+  card.getEventStyleOverrides = () => ({
+    event_font_size: '15',
+    event_time_font_size: 10,
+    event_location_font_size: ' 0.8em '
+  });
+
+  try {
+    const event = { entityId: 'calendar.family', summary: 'Styled' };
+    assert.equal(card.getEventBubbleFontSize(event), '15px');
+    assert.equal(card.getEventTimeFontSize(event), '10px');
+    assert.equal(card.getEventLocationFontSize(event), '0.8em');
+  } finally {
+    card.getEventStyleOverrides = originalGetEventStyleOverrides;
+  }
+});
+
+
 function makeRelativeEvent(summary, startOffsetMs, endOffsetMs) {
   const now = Date.now();
   return {

@@ -1003,38 +1003,41 @@ class SkylightCalendarCard extends HTMLElement {
     return !!(this._config?.show_dashboard_nav_button && this.getConfiguredDashboardPath());
   }
 
+  normalizeEnumValue(value, { aliases = {}, allowed = [], fallback }) {
+    const normalizedValue = String(value ?? '').trim().toLowerCase();
+    const mappedValue = aliases[normalizedValue] ?? normalizedValue;
+    return allowed.includes(mappedValue) ? mappedValue : fallback;
+  }
+
   normalizeDefaultDarkMode(value) {
     if (value === true) return 'dark';
     if (value === false || value === undefined || value === null || value === '') return 'auto';
 
-    const normalizedValue = String(value).trim().toLowerCase();
-    if (['auto', 'light', 'dark'].includes(normalizedValue)) {
-      return normalizedValue;
-    }
-
-    return 'auto';
+    return this.normalizeEnumValue(value, {
+      allowed: ['auto', 'light', 'dark'],
+      fallback: 'auto'
+    });
   }
 
   normalizeEventTitlePrefixMode(value) {
-    const normalizedValue = String(value ?? '').trim().toLowerCase();
-    if (['icon', 'badge', 'badgeicon'].includes(normalizedValue)) {
-      return 'badge_icon';
-    }
-    if (['friendly', 'friendlyname'].includes(normalizedValue)) {
-      return 'friendly_name';
-    }
-    if (['friendly_name', 'badge_icon', 'none'].includes(normalizedValue)) {
-      return normalizedValue;
-    }
-    return 'none';
+    return this.normalizeEnumValue(value, {
+      aliases: {
+        icon: 'badge_icon',
+        badge: 'badge_icon',
+        badgeicon: 'badge_icon',
+        friendly: 'friendly_name',
+        friendlyname: 'friendly_name'
+      },
+      allowed: ['friendly_name', 'badge_icon', 'none'],
+      fallback: 'none'
+    });
   }
 
   normalizePastEventMode(value) {
-    const normalizedValue = String(value ?? '').trim().toLowerCase();
-    if (['none', 'hide', 'muted'].includes(normalizedValue)) {
-      return normalizedValue;
-    }
-    return 'none';
+    return this.normalizeEnumValue(value, {
+      allowed: ['none', 'hide', 'muted'],
+      fallback: 'none'
+    });
   }
 
   normalizeEntityStringMap(value) {
@@ -1760,14 +1763,17 @@ class SkylightCalendarCard extends HTMLElement {
 
 
   normalizeCombineStyle(styleValue) {
-    const normalized = String(styleValue || '').trim().toLowerCase();
-    return ['stripes', 'bars', 'dots'].includes(normalized) ? normalized : 'bars';
+    return this.normalizeEnumValue(styleValue, {
+      allowed: ['stripes', 'bars', 'dots'],
+      fallback: 'bars'
+    });
   }
 
   normalizeEventColorMode(modeValue) {
-    const normalized = String(modeValue || '').trim().toLowerCase();
-    if (normalized === 'left-neutral' || normalized === 'left-tint') return normalized;
-    return 'classic';
+    return this.normalizeEnumValue(modeValue, {
+      allowed: ['classic', 'left-neutral', 'left-tint'],
+      fallback: 'classic'
+    });
   }
 
   normalizeCombineBackground(backgroundValue) {
@@ -1993,28 +1999,12 @@ class SkylightCalendarCard extends HTMLElement {
   }
 
 
-  normalizeStyleSizeValue(value) {
-    if (value === undefined || value === null || value === '') return null;
-
-    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-      return `${value}px`;
-    }
-
-    const trimmed = String(value).trim();
-    if (!trimmed) return null;
-    if (/^\d*\.?\d+(px|rem|em|%)$/i.test(trimmed)) return trimmed;
-
-    const parsed = Number(trimmed);
-    if (Number.isFinite(parsed) && parsed > 0) return `${parsed}px`;
-    return null;
-  }
-
-  normalizeStyleBorderWidth(value) {
+  normalizeCssLength(value, { allowZero = false } = {}) {
     if (value === undefined || value === null || value === '') return null;
 
     if (typeof value === 'number' && Number.isFinite(value)) {
-      const clamped = Math.max(0, value);
-      return `${clamped}px`;
+      if (allowZero) return `${Math.max(0, value)}px`;
+      return value > 0 ? `${value}px` : null;
     }
 
     const trimmed = String(value).trim();
@@ -2025,11 +2015,19 @@ class SkylightCalendarCard extends HTMLElement {
     }
 
     const parsed = Number(trimmed);
-    if (Number.isFinite(parsed) && parsed >= 0) {
+    if (Number.isFinite(parsed) && (allowZero ? parsed >= 0 : parsed > 0)) {
       return `${parsed}px`;
     }
 
     return null;
+  }
+
+  normalizeStyleSizeValue(value) {
+    return this.normalizeCssLength(value, { allowZero: false });
+  }
+
+  normalizeStyleBorderWidth(value) {
+    return this.normalizeCssLength(value, { allowZero: true });
   }
 
   normalizeDayOfWeekRule(value, localeOverride = null) {
@@ -7298,11 +7296,11 @@ class SkylightCalendarCard extends HTMLElement {
     return `rgb(${nr}, ${ng}, ${nb})`;
   }
 
-  getEventBubbleFontSize(event = null) {
+  getEventFontSize(event = null, configKey = 'event_font_size', fallbackPx = 11) {
     const styleOverrides = event ? this.getEventStyleOverrides(event) : null;
-    const configuredSize = styleOverrides?.event_font_size ?? this._config?.event_font_size;
+    const configuredSize = styleOverrides?.[configKey] ?? this._config?.[configKey];
     if (configuredSize === undefined || configuredSize === null || configuredSize === '') {
-      return '11px';
+      return `${fallbackPx}px`;
     }
 
     if (typeof configuredSize === 'number' && Number.isFinite(configuredSize)) {
@@ -7310,40 +7308,20 @@ class SkylightCalendarCard extends HTMLElement {
     }
 
     const normalized = String(configuredSize).trim();
-    if (!normalized) return '11px';
+    if (!normalized) return `${fallbackPx}px`;
     return /^\d+(\.\d+)?$/.test(normalized) ? `${normalized}px` : normalized;
+  }
+
+  getEventBubbleFontSize(event = null) {
+    return this.getEventFontSize(event, 'event_font_size', 11);
   }
 
   getEventTimeFontSize(event = null) {
-    const styleOverrides = event ? this.getEventStyleOverrides(event) : null;
-    const configuredSize = styleOverrides?.event_time_font_size ?? this._config?.event_time_font_size;
-    if (configuredSize === undefined || configuredSize === null || configuredSize === '') {
-      return '9px';
-    }
-
-    if (typeof configuredSize === 'number' && Number.isFinite(configuredSize)) {
-      return `${configuredSize}px`;
-    }
-
-    const normalized = String(configuredSize).trim();
-    if (!normalized) return '9px';
-    return /^\d+(\.\d+)?$/.test(normalized) ? `${normalized}px` : normalized;
+    return this.getEventFontSize(event, 'event_time_font_size', 9);
   }
 
   getEventLocationFontSize(event = null) {
-    const styleOverrides = event ? this.getEventStyleOverrides(event) : null;
-    const configuredSize = styleOverrides?.event_location_font_size ?? this._config?.event_location_font_size;
-    if (configuredSize === undefined || configuredSize === null || configuredSize === '') {
-      return '9px';
-    }
-
-    if (typeof configuredSize === 'number' && Number.isFinite(configuredSize)) {
-      return `${configuredSize}px`;
-    }
-
-    const normalized = String(configuredSize).trim();
-    if (!normalized) return '9px';
-    return /^\d+(\.\d+)?$/.test(normalized) ? `${normalized}px` : normalized;
+    return this.getEventFontSize(event, 'event_location_font_size', 9);
   }
 
   shouldShowEventLocation(event) {
