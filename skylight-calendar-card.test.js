@@ -1284,6 +1284,109 @@ test('event_styles apply rule priority and match logic', () => {
   assert.equal(card.eventMatchesRule(event, { title: 'meeting', not: { title: 'holiday' } }), true);
 });
 
+
+test('event_styles do not render event icons by default', () => {
+  const card = makeCard({ entities: ['calendar.a'] });
+  const event = { entityId: 'calendar.a', color: '#f00', summary: 'Team meeting', start: { date: '2026-05-01' }, end: { date: '2026-05-02' } };
+
+  assert.equal(card.getEventStyleIconConfig(event), null);
+  assert.equal(card.renderEventTitleWithPrefix(event, event.summary), 'Team meeting');
+  assert.equal(card.renderEventStyleCornerIcon(event), '');
+});
+
+test('event_styles render event icon when matching rule applies', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    event_styles: [
+      { match: { title: 'meeting' }, style: { icon: 'mdi:basketball' } }
+    ]
+  });
+  const event = { entityId: 'calendar.a', color: '#f00', summary: 'Team meeting', start: { date: '2026-05-01' }, end: { date: '2026-05-02' } };
+
+  const title = card.renderEventTitleWithPrefix(event, event.summary);
+  assert.match(title, /ha-icon class="event-style-icon event-style-icon-before-title" icon="mdi:basketball"/);
+  assert.match(title, /Team meeting/);
+});
+
+test('event_styles non-matching icon rules do not render icons', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    event_styles: [
+      { match: { title: 'practice' }, style: { icon: 'mdi:basketball' } }
+    ]
+  });
+  const event = { entityId: 'calendar.a', color: '#f00', summary: 'Team meeting', start: { date: '2026-05-01' }, end: { date: '2026-05-02' } };
+
+  assert.equal(card.getEventStyleIconConfig(event), null);
+  assert.doesNotMatch(card.renderEventTitleWithPrefix(event, event.summary), /ha-icon/);
+});
+
+test('event_styles apply configured event icon color and size', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    event_styles: [
+      { match: { title: 'meeting' }, style: { icon: 'mdi:basketball', icon_color: 'orange', icon_size: 18 } }
+    ]
+  });
+  const event = { entityId: 'calendar.a', color: '#f00', summary: 'Team meeting', start: { date: '2026-05-01' }, end: { date: '2026-05-02' } };
+
+  const title = card.renderEventTitleWithPrefix(event, event.summary);
+  assert.match(title, /color: #FFA500;/);
+  assert.match(title, /--event-style-icon-size: 18px;/);
+});
+
+test('event_styles icon precedence follows style rule precedence', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    event_styles: [
+      { match: { title: 'meeting' }, priority: 1, style: { icon: 'mdi:calendar', icon_color: 'blue' } },
+      { match: { all_day: true }, priority: 5, style: { icon: 'mdi:trophy', icon_color: 'red' } }
+    ]
+  });
+  const event = { entityId: 'calendar.a', color: '#f00', summary: 'Team meeting', start: { date: '2026-05-01' }, end: { date: '2026-05-02' } };
+
+  const title = card.renderEventTitleWithPrefix(event, event.summary);
+  assert.match(title, /icon="mdi:trophy"/);
+  assert.match(title, /color: #FF0000;/);
+  assert.doesNotMatch(title, /mdi:calendar/);
+});
+
+test('renderEventTitleWithPrefix keeps existing title output without icon and adds icon with prefixes', () => {
+  const plainCard = makeCard({ entities: ['calendar.a'], event_title_prefix: 'none' });
+  const prefixedCard = makeCard({
+    entities: ['calendar.a'],
+    calendar_badge_icons: { 'calendar.a': 'mdi:home' },
+    event_title_prefix: 'badge_icon',
+    event_styles: [
+      { match: { title: 'meeting' }, style: { icon: 'mdi:basketball' } }
+    ]
+  });
+  const event = { entityId: 'calendar.a', color: '#f00', summary: 'Team meeting', start: { date: '2026-05-01' }, end: { date: '2026-05-02' } };
+
+  assert.equal(plainCard.renderEventTitleWithPrefix(event, event.summary), 'Team meeting');
+  const prefixedTitle = prefixedCard.renderEventTitleWithPrefix(event, event.summary);
+  assert.match(prefixedTitle, /event-title-prefix-badge/);
+  assert.match(prefixedTitle, /icon="mdi:home"/);
+  assert.match(prefixedTitle, /event-style-icon-before-title/);
+  assert.match(prefixedTitle, /icon="mdi:basketball"/);
+});
+
+test('event_styles render corner-position icons separately from event titles', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    event_styles: [
+      { match: { title: 'meeting' }, style: { icon: 'mdi:star', icon_position: 'corner', icon_size: '1.2em' } }
+    ]
+  });
+  const event = { entityId: 'calendar.a', color: '#f00', summary: 'Team meeting', start: { date: '2026-05-01' }, end: { date: '2026-05-02' } };
+
+  assert.doesNotMatch(card.renderEventTitleWithPrefix(event, event.summary), /mdi:star/);
+  const cornerIcon = card.renderEventStyleCornerIcon(event);
+  assert.match(cornerIcon, /event-style-icon-corner/);
+  assert.match(cornerIcon, /icon="mdi:star"/);
+  assert.match(cornerIcon, /--event-style-icon-size: 1.2em;/);
+});
+
 test('event_styles supports past matcher for past and future events', () => {
   const card = makeCard({ entities: ['calendar.a'] });
   const pastEvent = { entityId: 'calendar.a', color: '#f00', summary: 'Past Event', start: { dateTime: '2000-05-01T10:00:00Z' }, end: { dateTime: '2000-05-01T11:00:00Z' } };
