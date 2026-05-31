@@ -119,24 +119,10 @@ Some advanced features are supported by the card but must be configured in YAML.
 
 If you do not see an option in the visual editor, open the card in YAML mode. YAML-only features include:
 
-- `event_styles` — conditionally style individual events and add matched event icons (`icon`, `icon_color`, `icon_size`, `icon_position`)
+- `event_styles` — conditionally style individual events
 - `day_styles` — conditionally style days
 - `virtual_calendars` — group multiple calendars into a single virtual calendar
 - Advanced UIX/Card Mod styling
-
-Example `event_styles` icon rule:
-
-```yaml
-event_styles:
-  - match:
-      title: practice
-    style:
-      background_color: orange
-      icon: mdi:basketball
-      icon_color: white
-      icon_size: 16px
-      icon_position: before_title # or corner
-```
 
 Full documentation is available in the wiki:
 

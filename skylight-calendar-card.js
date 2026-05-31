@@ -1806,19 +1806,8 @@ class SkylightCalendarCard extends HTMLElement {
         if (typeof rule.style === 'string' && rule.style.trim().toLowerCase() === 'hide') {
           style = { hide: true };
         } else if (rule.style && typeof rule.style === 'object') {
-          style = { ...rule.style };
+          style = rule.style;
         }
-
-        const topLevelIconStyle = {};
-        ['icon', 'icon_color', 'icon_size', 'icon_position'].forEach((key) => {
-          if (rule[key] !== undefined && rule[key] !== null && rule[key] !== '') {
-            topLevelIconStyle[key] = rule[key];
-          }
-        });
-        if (Object.keys(topLevelIconStyle).length > 0) {
-          style = { ...(style || {}), ...topLevelIconStyle };
-        }
-
         if (!match || !style) return null;
 
         const numericPriority = Number(rule.priority);
@@ -2142,7 +2131,7 @@ class SkylightCalendarCard extends HTMLElement {
     setIfDefined('event_time_font_size', style.event_time_font_size);
     setIfDefined('event_location_font_size', style.event_location_font_size);
 
-    const icon = this.normalizeEventTextValue(style.icon);
+    const icon = this.normalizeEventIconName(style.icon);
     if (icon) normalized.icon = icon;
     const iconColor = this.normalizeEventIconColor(style.icon_color);
     if (iconColor) normalized.icon_color = iconColor;
@@ -2165,6 +2154,13 @@ class SkylightCalendarCard extends HTMLElement {
     if (hideEvent !== null) normalized.hide = hideEvent;
     if (style.event_title_prefix !== undefined) normalized.event_title_prefix = this.normalizeEventTitlePrefixMode(style.event_title_prefix);
 
+    return normalized;
+  }
+
+  normalizeEventIconName(iconValue) {
+    const normalized = this.normalizeEventTextValue(iconValue);
+    if (!normalized) return null;
+    if (!/^mdi:[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalized)) return null;
     return normalized;
   }
 
@@ -7316,7 +7312,7 @@ class SkylightCalendarCard extends HTMLElement {
 
   getEventStyleIconConfig(event) {
     const styleOverrides = this.getEventStyleOverrides(event);
-    const icon = this.normalizeEventTextValue(styleOverrides?.icon);
+    const icon = this.normalizeEventIconName(styleOverrides?.icon);
     if (!icon) return null;
 
     return {

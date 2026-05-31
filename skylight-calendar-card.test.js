@@ -1321,6 +1321,35 @@ test('event_styles non-matching icon rules do not render icons', () => {
   assert.doesNotMatch(card.renderEventTitleWithPrefix(event, event.summary), /ha-icon/);
 });
 
+test('event_styles ignore invalid event icon names safely', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    event_styles: [
+      { match: { title: 'meeting' }, style: { icon: 'javascript:alert-1', icon_color: 'orange', icon_size: 18 } },
+      { match: { title: 'meeting' }, priority: -1, style: { icon: 'mdi:Valid-But-Mixed-Case' } },
+      { match: { title: 'meeting' }, priority: -2, style: { icon: 'mdi:' } }
+    ]
+  });
+  const event = { entityId: 'calendar.a', color: '#f00', summary: 'Team meeting', start: { date: '2026-05-01' }, end: { date: '2026-05-02' } };
+
+  assert.equal(card.getEventStyleIconConfig(event), null);
+  assert.doesNotMatch(card.renderEventTitleWithPrefix(event, event.summary), /ha-icon/);
+});
+
+test('event_styles ignore top-level event icon fields outside style block', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    event_styles: [
+      { match: { title: 'meeting' }, icon: 'mdi:star', icon_color: 'gold', style: { background_color: '#112233' } }
+    ]
+  });
+  const event = { entityId: 'calendar.a', color: '#f00', summary: 'Team meeting', start: { date: '2026-05-01' }, end: { date: '2026-05-02' } };
+
+  assert.equal(card.getEventStyleIconConfig(event), null);
+  assert.equal(card.getEventStyleOverrides(event).background_color, '#112233');
+  assert.doesNotMatch(card.renderEventTitleWithPrefix(event, event.summary), /mdi:star/);
+});
+
 test('event_styles apply configured event icon color and size', () => {
   const card = makeCard({
     entities: ['calendar.a'],
