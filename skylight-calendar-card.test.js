@@ -392,6 +392,53 @@ test('setConfig normalizes fallback values and aliases', () => {
   assert.equal(card._config.color_scheme, 'auto');
 });
 
+test('setConfig schema keeps normalized fields from being overwritten by raw config', () => {
+  const card = makeCard({
+    entities: ['calendar.family'],
+    default_view: 'week',
+    event_title_prefix: 'icon',
+    header_dashboard_path: 'lovelace-family',
+    header_time_sensor: ' sensor.time ',
+    event_styles: [
+      { match: { title: 'meeting' }, style: { background_color: 'blue' } },
+      { match: null, style: { background_color: 'red' } }
+    ],
+    day_badges: [
+      { conditions: { title_contains: 'meeting' }, text: ' M ', background_color: 'lime', size: 28 },
+      { conditions: null, text: 'ignored' }
+    ]
+  });
+
+  assert.equal(card._config.default_view, 'week-compact');
+  assert.equal(card._config.event_title_prefix, 'badge_icon');
+  assert.equal(card._config.header_dashboard_path, '/lovelace-family');
+  assert.equal(card._config.header_time_sensor, 'sensor.time');
+  assert.deepEqual(card._config.event_styles, [{
+    id: 'event-style-1',
+    priority: 0,
+    match: { title: 'meeting' },
+    style: { background_color: '#0000FF' },
+    index: 0
+  }]);
+  assert.deepEqual(card._config.day_badges, [{
+    conditions: { title: 'contains:meeting' },
+    text: 'M',
+    background_color: '#00FF00',
+    size: '28px'
+  }]);
+});
+
+test('setConfig preserves unknown custom config keys during normalization', () => {
+  const customObject = { enabled: true };
+  const card = makeCard({
+    entities: ['calendar.family'],
+    custom_integration_key: customObject,
+    custom_scalar: 'keep-me'
+  });
+
+  assert.equal(card._config.custom_integration_key, customObject);
+  assert.equal(card._config.custom_scalar, 'keep-me');
+});
 
 test('normalizes enum helper aliases and fallbacks consistently', () => {
   const card = makeCard();
