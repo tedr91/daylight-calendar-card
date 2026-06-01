@@ -1457,7 +1457,10 @@ class SkylightCalendarCard extends HTMLElement {
       normalizedCalendarColors: this.normalizeColorMap(rawConfig.colors || {}),
       normalizedEventFontColors: this.normalizeColorMap(rawConfig.event_font_colors || {}),
       normalizedEventStyles: this.normalizeEventStyles(rawConfig.event_styles || []),
-      normalizedDayStyles: this.normalizeDayStyles(rawConfig.day_styles || [], resolveLanguage(rawConfig.locale || rawConfig.language || this._hass?.locale?.language || this._hass?.language)),
+      normalizedDayStyles: this.normalizeDayStyles(
+        this.buildDayStyleRules(rawConfig),
+        resolveLanguage(rawConfig.locale || rawConfig.language || this._hass?.locale?.language || this._hass?.language)
+      ),
       normalizedDayBadges: this.normalizeDayBadges(rawConfig.day_badges || []),
       normalizedHeaderColor: this.normalizeSingleColor(rawConfig.header_color),
       normalizedHeaderTextColor: this.normalizeSingleColor(rawConfig.header_text_color),
@@ -1861,26 +1864,14 @@ class SkylightCalendarCard extends HTMLElement {
           normalized.day_of_week = dayOfWeek;
         }
 
-        const normalizedBackground = String(rule.background || '').trim().toLowerCase() === 'auto'
-          ? 'auto'
-          : this.normalizeSingleColor(rule.background);
+        const style = this.normalizeDayStyleBlock(rule.style && typeof rule.style === 'object' ? rule.style : rule);
+        const normalizedBackground = style.background;
         if (normalizedBackground) normalized.background = normalizedBackground;
 
-        const numericOpacity = Number(rule.opacity);
-        if (Number.isFinite(numericOpacity)) {
-          normalized.opacity = Math.max(0, Math.min(1, numericOpacity));
-        }
-
-        const numericBackgroundOpacity = Number(rule.background_opacity);
-        if (Number.isFinite(numericBackgroundOpacity)) {
-          normalized.background_opacity = Math.max(0, Math.min(1, numericBackgroundOpacity));
-        }
-
-        const normalizedBorderColor = this.normalizeSingleColor(rule.border_color);
-        if (normalizedBorderColor) normalized.border_color = normalizedBorderColor;
-
-        const normalizedBorderWidth = this.normalizeStyleBorderWidth(rule.border_width);
-        if (normalizedBorderWidth) normalized.border_width = normalizedBorderWidth;
+        if (style.opacity !== undefined) normalized.opacity = style.opacity;
+        if (style.background_opacity !== undefined) normalized.background_opacity = style.background_opacity;
+        if (style.border_color !== undefined) normalized.border_color = style.border_color;
+        if (style.border_width !== undefined) normalized.border_width = style.border_width;
 
         if (condition === 'has_event') {
           normalized.calendar = String(rule.calendar).trim();
@@ -1899,6 +1890,57 @@ class SkylightCalendarCard extends HTMLElement {
         return normalized;
       })
       .filter(Boolean);
+  }
+
+  buildDayStyleRules(rawConfig = {}) {
+    const rules = Array.isArray(rawConfig.day_styles) ? [...rawConfig.day_styles] : [];
+    const todayStyle = this.buildTodayDayStyleRule(rawConfig);
+    if (todayStyle) rules.push(todayStyle);
+    return rules;
+  }
+
+  buildTodayDayStyleRule(rawConfig = {}) {
+    const hasTodayBackgroundColor = rawConfig.today_background_color !== undefined && rawConfig.today_background_color !== null && rawConfig.today_background_color !== '';
+    const hasTodayStyle = rawConfig.today_style && typeof rawConfig.today_style === 'object' && !Array.isArray(rawConfig.today_style);
+    if (!hasTodayBackgroundColor && !hasTodayStyle) return null;
+
+    const style = {
+      ...(hasTodayBackgroundColor ? { background_color: rawConfig.today_background_color } : {}),
+      ...(hasTodayStyle ? rawConfig.today_style : {})
+    };
+
+    return {
+      condition: 'today',
+      priority: 0,
+      style
+    };
+  }
+
+  normalizeDayStyleBlock(style = {}) {
+    const normalized = {};
+    const backgroundValue = style.background !== undefined ? style.background : (style.background_color !== undefined ? style.background_color : style.color);
+    const normalizedBackground = String(backgroundValue || '').trim().toLowerCase() === 'auto'
+      ? 'auto'
+      : this.normalizeSingleColor(backgroundValue);
+    if (normalizedBackground) normalized.background = normalizedBackground;
+
+    const numericOpacity = Number(style.opacity);
+    if (Number.isFinite(numericOpacity)) {
+      normalized.opacity = Math.max(0, Math.min(1, numericOpacity));
+    }
+
+    const numericBackgroundOpacity = Number(style.background_opacity);
+    if (Number.isFinite(numericBackgroundOpacity)) {
+      normalized.background_opacity = Math.max(0, Math.min(1, numericBackgroundOpacity));
+    }
+
+    const normalizedBorderColor = this.normalizeSingleColor(style.border_color);
+    if (normalizedBorderColor) normalized.border_color = normalizedBorderColor;
+
+    const normalizedBorderWidth = this.normalizeStyleBorderWidth(style.border_width);
+    if (normalizedBorderWidth) normalized.border_width = normalizedBorderWidth;
+
+    return normalized;
   }
 
 
