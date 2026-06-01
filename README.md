@@ -121,33 +121,9 @@ If you do not see an option in the visual editor, open the card in YAML mode. YA
 
 - `event_styles` — conditionally style individual events
 - `day_styles` — conditionally style days
-- `today_background_color` / `today_style` — convenience options for styling today's date without writing a full `day_styles` rule
 - `virtual_calendars` — group multiple calendars into a single virtual calendar
 - Advanced UIX/Card Mod styling
 
-### Styling today's date
-
-For simple today styling, use `today_background_color`. Internally this is treated like a `day_styles` rule with `condition: today` and the default priority `0`, so explicit higher-priority `day_styles` rules can override it.
-
-```yaml
-type: custom:daylight-calendar-card
-entities:
-  - calendar.family
-today_background_color: var(--primary-color)
-```
-
-For more control, use `today_style` with the same supported style fields as a `day_styles` style block, such as `background_color`, `background_opacity`, `opacity`, `border_color`, and `border_width`. If both today options are configured, `today_style` takes precedence over `today_background_color` for overlapping fields.
-
-```yaml
-type: custom:daylight-calendar-card
-entities:
-  - calendar.family
-today_style:
-  background_color: '#ff0000'
-  background_opacity: 0.35
-  border_color: '#ffffff'
-  border_width: 2
-```
 
 Full documentation is available in the wiki:
 
