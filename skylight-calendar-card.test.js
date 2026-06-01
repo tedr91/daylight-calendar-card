@@ -2192,6 +2192,104 @@ test('day_styles evaluate today/weekend/has_event rules and auto background', ()
   assert.equal(style.border_width, '2px');
 });
 
+test('day_styles remain empty by default without today convenience options', () => {
+  const card = makeCard({ entities: ['calendar.a'] });
+
+  assert.deepEqual(card._config.day_styles, []);
+  assert.equal(card.getDayStyleConfig(new Date(), [], true), null);
+});
+
+test('today_background_color styles only today through day_styles', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    today_background_color: 'red'
+  });
+
+  assert.equal(card._config.day_styles.length, 1);
+  assert.equal(card._config.day_styles[0].condition, 'today');
+  assert.equal(card._config.day_styles[0].background, '#FF0000');
+  assert.equal(card.getDayStyleConfig(new Date(), [], true).background, '#FF0000');
+  assert.equal(card.getDayStyleConfig(new Date('2026-05-01T00:00:00Z'), [], false), null);
+});
+
+test('today_style styles only today using day style fields', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    today_style: {
+      background_color: 'var(--primary-color)',
+      background_opacity: 0.4,
+      opacity: 0.75,
+      border_color: 'blue',
+      border_width: 3
+    }
+  });
+
+  const style = card.getDayStyleConfig(new Date(), [], true);
+  assert.equal(style.background, 'var(--primary-color)');
+  assert.equal(style.background_opacity, 0.4);
+  assert.equal(style.opacity, 0.75);
+  assert.equal(style.border_color, '#0000FF');
+  assert.equal(style.border_width, '3px');
+  assert.equal(card.getDayStyleConfig(new Date('2026-05-01T00:00:00Z'), [], false), null);
+});
+
+test('today_style overrides today_background_color for overlapping fields', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    today_background_color: '#ff0000',
+    today_style: {
+      background_color: '#00ff00',
+      opacity: 0.5
+    }
+  });
+
+  const style = card.getDayStyleConfig(new Date(), [], true);
+  assert.equal(style.background, '#00ff00');
+  assert.equal(style.opacity, 0.5);
+});
+
+test('today convenience styles preserve explicit day_styles behavior', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    today_background_color: '#ff0000',
+    day_styles: [{ condition: 'day_of_week', day_of_week: ['friday'], background: '#123456' }]
+  });
+
+  const friday = new Date('2026-05-01T00:00:00Z');
+  assert.equal(card.getDayStyleConfig(friday, [], false).background, '#123456');
+});
+
+test('today convenience styles use default priority lower than explicit higher priority day_styles', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    today_style: { background_color: '#111111', opacity: 0.25, border_color: '#222222' },
+    day_styles: [
+      { condition: 'today', priority: 1, background: '#333333' },
+      { condition: 'today', priority: 0, opacity: 0.8 }
+    ]
+  });
+
+  const style = card.getDayStyleConfig(new Date(), [], true);
+  assert.equal(style.background, '#333333');
+  assert.equal(style.opacity, 0.8);
+  assert.equal(style.border_color, '#222222');
+});
+
+test('today convenience styles ignore invalid style values safely', () => {
+  const card = makeCard({
+    entities: ['calendar.a'],
+    today_style: {
+      background_color: '',
+      opacity: 'not-a-number',
+      background_opacity: 'invalid',
+      border_width: '-2'
+    }
+  });
+
+  assert.deepEqual(card._config.day_styles, []);
+  assert.equal(card.getDayStyleConfig(new Date(), [], true), null);
+});
+
 
 
 test('day_styles apply priority per field with tie-break by rule order', () => {

@@ -124,6 +124,7 @@ If you do not see an option in the visual editor, open the card in YAML mode. YA
 - `virtual_calendars` — group multiple calendars into a single virtual calendar
 - Advanced UIX/Card Mod styling
 
+
 Full documentation is available in the wiki:
 
 * Installation
