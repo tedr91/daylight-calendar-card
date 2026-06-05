@@ -260,6 +260,66 @@ test.beforeEach(async ({ page }) => {
   }, FIXED_NOW);
 });
 
+
+test('behavior: event modal overlays native header at tablet viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  const fixtureUrl = `file://${path.join(process.cwd(), 'playwright', 'ha-fixture.html')}`;
+  await page.goto(fixtureUrl);
+  await page.addStyleTag({
+    content: `
+      #native-ha-header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 64px;
+        z-index: 100;
+        background: rgb(37, 99, 235);
+      }
+      body { padding-top: 80px; }
+    `
+  });
+  await page.evaluate(() => {
+    const header = document.createElement('div');
+    header.id = 'native-ha-header';
+    header.textContent = 'Home Assistant';
+    document.body.prepend(header);
+  });
+  await page.evaluate((params) => window.renderCalendarCard(params), {
+    config: { entities: ['calendar.family', 'calendar.work'], title: 'Tablet Modal Calendar', default_view: 'month' },
+    events: baseEvents,
+    darkMode: false
+  });
+
+  const card = page.locator('skylight-calendar-card');
+  await expect(card).toBeVisible();
+  const coffeeEvent = card.locator('.event').filter({ hasText: 'Coffee' });
+  await expect(coffeeEvent).toBeVisible();
+
+  await coffeeEvent.click();
+  const modal = card.locator('#event-modal');
+  await expect(modal).toHaveClass(/show/);
+  await expect(card).toHaveClass(/event-modal-open/);
+  await expect(modal).toHaveCSS('position', 'fixed');
+  await expect(modal).toHaveCSS('z-index', '2147483647');
+
+  const modalBox = await modal.boundingBox();
+  expect(modalBox.x).toBe(0);
+  expect(modalBox.y).toBe(0);
+  expect(modalBox.width).toBe(768);
+  expect(modalBox.height).toBe(1024);
+
+  const topElementInfo = await page.evaluate(() => {
+    const el = document.elementFromPoint(384, 32);
+    return {
+      id: el?.id || '',
+      className: typeof el?.className === 'string' ? el.className : '',
+      closestModalId: el?.closest?.('#event-modal')?.id || ''
+    };
+  });
+  expect(topElementInfo.closestModalId || topElementInfo.id).toBe('event-modal');
+});
+
 test('visual: event modal renders rich markdown and HTML descriptions', async ({ page }) => {
   const fixtureUrl = `file://${path.join(process.cwd(), 'playwright', 'ha-fixture.html')}`;
   await page.goto(fixtureUrl);

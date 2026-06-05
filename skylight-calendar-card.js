@@ -3067,6 +3067,7 @@ class SkylightCalendarCard extends HTMLElement {
     }
     this.detachSystemThemeListener();
     this.teardownWeatherForecastSubscription();
+    this.updateEventModalOpenState(null);
     if (this._modalVisibilityObserver) {
       this._modalVisibilityObserver.disconnect();
       this._modalVisibilityObserver = null;
@@ -3634,6 +3635,14 @@ class SkylightCalendarCard extends HTMLElement {
         width: 100%;
         height: 100%;
         min-height: 0;
+      }
+
+      :host(.event-modal-open),
+      daylight-calendar-card.event-modal-open,
+      skylight-calendar-card.event-modal-open {
+        position: relative;
+        z-index: 2147483000;
+        overflow: visible;
       }
 
       .calendar-container {
@@ -5285,17 +5294,25 @@ class SkylightCalendarCard extends HTMLElement {
         top: -3px;
       }
 
+      :host(.event-modal-open) .calendar-container,
+      :host(.event-modal-open) .calendar-body,
+      daylight-calendar-card.event-modal-open .calendar-container,
+      daylight-calendar-card.event-modal-open .calendar-body,
+      skylight-calendar-card.event-modal-open .calendar-container,
+      skylight-calendar-card.event-modal-open .calendar-body {
+        overflow: visible;
+      }
+
       .event-modal {
         display: none;
         position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
+        inset: 0;
         background: rgba(0, 0, 0, 0.5);
-        z-index: 1000;
+        z-index: 2147483647;
         align-items: center;
         justify-content: center;
+        box-sizing: border-box;
+        padding: 16px;
       }
 
       .event-modal.show {
@@ -5309,6 +5326,7 @@ class SkylightCalendarCard extends HTMLElement {
         max-width: 500px;
         width: 90%;
         max-height: 80vh;
+        max-height: min(80vh, calc(100dvh - 32px));
         overflow-y: auto;
         box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
       }
@@ -6391,10 +6409,10 @@ class SkylightCalendarCard extends HTMLElement {
         ${this._config.hide_header ? '' : (this._config.compact_header ? this.renderCompactHeader() : this.renderStandardHeader())}
         <div class="calendar-body">
           ${this.renderCalendarView()}
+        </div>
 
-          <div class="event-modal" id="event-modal">
-            <div class="modal-content" id="modal-content">
-            </div>
+        <div class="event-modal" id="event-modal">
+          <div class="modal-content" id="modal-content">
           </div>
         </div>
       </div>
@@ -8841,15 +8859,23 @@ class SkylightCalendarCard extends HTMLElement {
     });
   }
 
+  updateEventModalOpenState(modal = this.getRootElementById('event-modal')) {
+    const isOpen = !!modal && modal.classList.contains('show');
+    this.classList?.toggle('event-modal-open', isOpen);
+  }
+
   observeModalVisibility(modal) {
     if (this._modalVisibilityObserver) {
       this._modalVisibilityObserver.disconnect();
       this._modalVisibilityObserver = null;
     }
 
+    this.updateEventModalOpenState(modal);
+
     if (!modal) return;
 
     this._modalVisibilityObserver = new MutationObserver(() => {
+      this.updateEventModalOpenState(modal);
       if (!this.isEventManagementDialogOpen()) {
         this.flushPendingHeaderTimeRender();
       }
