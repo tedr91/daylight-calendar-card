@@ -92,6 +92,17 @@ test('registers daylight custom element while retaining skylight compatibility',
   });
 });
 
+test('Danish language support localizes core labels and locale', () => {
+  const card = makeCard({ entities: ['calendar.family'], language: 'da' });
+
+  assert.equal(card.getLanguage(), 'da');
+  assert.equal(card.getLocale(), 'da-DK');
+  assert.equal(card.t('defaultTitle'), 'Familiekalender');
+  assert.equal(card.t('addEvent'), 'Tilføj begivenhed');
+  assert.equal(card.t('deleteEventConfirm', { title: 'Sommerfest' }), 'Er du sikker på, at du vil slette "Sommerfest"? Denne handling kan ikke fortrydes.');
+  assert.equal(card.t('durationHours', { count: 2 }), '2 timer');
+});
+
 function recurrenceCases() {
   return [
     { name: 'single event', rrule: null },
