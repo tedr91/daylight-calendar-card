@@ -293,9 +293,10 @@ test('behavior: event modal overlays native header at tablet viewport', async ({
 
   const card = page.locator('skylight-calendar-card');
   await expect(card).toBeVisible();
-  await expect(card.locator('.month-view')).toBeVisible();
+  const coffeeEvent = card.locator('.event').filter({ hasText: 'Coffee' });
+  await expect(coffeeEvent).toBeVisible();
 
-  await card.locator('.event').filter({ hasText: 'Coffee' }).click();
+  await coffeeEvent.click();
   const modal = card.locator('#event-modal');
   await expect(modal).toHaveClass(/show/);
   await expect(card).toHaveClass(/event-modal-open/);
