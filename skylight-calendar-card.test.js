@@ -644,6 +644,53 @@ test('calendar badge can show linked person location and picture', () => {
   assert.match(html, /src="\/api\/image\/serve\/ian\/original"/);
 });
 
+
+test('event modal overlay CSS uses viewport-fixed coverage and high stacking', () => {
+  const card = makeCard();
+  const styles = card.getStyles();
+
+  assert.match(styles, /\.event-modal\s*\{[\s\S]*position:\s*fixed;/);
+  assert.match(styles, /\.event-modal\s*\{[\s\S]*inset:\s*0;/);
+  assert.match(styles, /\.event-modal\s*\{[\s\S]*z-index:\s*2147483647;/);
+  assert.match(styles, /:host\(\.event-modal-open\)[\s\S]*z-index:\s*2147483000;/);
+  assert.match(styles, /event-modal-open[\s\S]*\.calendar-container[\s\S]*overflow:\s*visible;/);
+  assert.match(styles, /event-modal-open[\s\S]*\.calendar-body[\s\S]*overflow:\s*visible;/);
+});
+
+test('event modal open state toggles a host stacking class', () => {
+  const card = makeCard();
+  const classes = new Set();
+  card.classList = {
+    toggle(name, enabled) {
+      if (enabled) classes.add(name);
+      else classes.delete(name);
+    },
+    contains(name) {
+      return classes.has(name);
+    }
+  };
+
+  const modalClasses = new Set();
+  const modal = {
+    classList: {
+      contains(name) {
+        return modalClasses.has(name);
+      }
+    }
+  };
+
+  card.updateEventModalOpenState(modal);
+  assert.equal(card.classList.contains('event-modal-open'), false);
+
+  modalClasses.add('show');
+  card.updateEventModalOpenState(modal);
+  assert.equal(card.classList.contains('event-modal-open'), true);
+
+  modalClasses.delete('show');
+  card.updateEventModalOpenState(modal);
+  assert.equal(card.classList.contains('event-modal-open'), false);
+});
+
 test('calendar render includes header controls and modal container', () => {
   const card = new Card();
   card._hass = { states: {}, locale: { language: 'en' }, language: 'en', themes: { darkMode: false } };
