@@ -69,6 +69,117 @@ Card.prototype.render = function() {};
 Card.prototype.renderPreservingAgendaScroll = function() {};
 Card.prototype.ensureEventsForCurrentRange = function() {};
 
+
+const CONFIG_COVERAGE_INVENTORY = {
+  title: 'Danish language support localizes core labels and locale',
+  entities: 'setConfig validates calendar entities and render tests use configured calendars',
+  first_day_of_week: 'first_day_of_week normalizes to firstDayOfWeek and controls headers and week starts',
+  colors: 'calendar colors prefer configured values before default palette',
+  calendar_names: 'calendar_names overrides displayed calendar labels',
+  calendar_badge_icons: 'calendar badge can show linked person location and picture',
+  calendar_person_entities: 'calendar badge can show linked person location and picture',
+  max_events: 'max_events limits rendered agenda events',
+  default_view: 'setConfig normalizes fallback values and aliases',
+  week_days: 'week_days filters configured week rendering days',
+  rolling_days_week_compact: 'rolling_days_week_compact shows current day plus configured days',
+  rolling_days_schedule: 'rolling_days_schedule shows current day plus configured days',
+  rolling_days_agenda: 'agenda rolling days are configurable and include current day + N days',
+  rolling_weeks: 'rolling_weeks month mode renders configured rolling rows from first day of week',
+  show_week_numbers_month: 'show_week_numbers_month adds month-only week number headers and cells',
+  show_all_events_month: 'month all-events options affect visible event limits',
+  show_all_details_month: 'hide_times_for_calendars applies across agenda, week-standard, week-compact, and month renderers',
+  hide_the_past: 'legacy hide_the_past true maps to hiding ended events',
+  past_event_mode: 'past_event_mode muted leaves ended events visible and applies muted style',
+  hide_empty_days: 'agenda hide_empty_days removes empty day rows',
+  agenda_compact_events: 'agenda compact events use compact class and sizing',
+  shorten_event_times: 'shorten_event_times removes minutes from whole-hour 12-hour event times',
+  disable_swipe_controls: 'disable_swipe_controls disables swipe controls without affecting agenda',
+  week_start_hour: 'lock_schedule_hours keeps configured schedule hours from expanding to events',
+  week_end_hour: 'lock_schedule_hours keeps configured schedule hours from expanding to events',
+  lock_schedule_hours: 'lock_schedule_hours keeps configured schedule hours from expanding to events',
+  compact_height: 'setConfig applies visual layout and styling options',
+  compact_width: 'setConfig applies visual layout and styling options',
+  height_scale: 'height_scale scales week-standard hour slots deterministically',
+  compact_header: 'setConfig applies visual layout and styling options',
+  hide_year: 'setConfig applies visual layout and styling options',
+  hide_calendars: 'setConfig applies visual layout and styling options',
+  hide_header: 'hide_header removes the header wrapper entirely',
+  hide_calendar_names: 'setConfig applies visual layout and styling options',
+  hide_controls: 'calendar render includes header controls and modal container',
+  hide_navigation_buttons: 'hide_navigation_buttons hides previous, next, and today controls only',
+  hide_add_event_button: 'hide_add_event_button hides add event control only',
+  hide_view_selector: 'hide_view_selector hides only the selector control',
+  hide_dark_mode_toggle: 'hide_dark_mode_toggle hides only the theme toggle',
+  show_dashboard_nav_button: 'setConfig applies visual layout and styling options',
+  header_dashboard_path: 'setConfig schema keeps normalized fields from being overwritten by raw config',
+  header_time_sensor: 'setConfig schema keeps normalized fields from being overwritten by raw config',
+  header_weather_sensor: 'weather renders Home Assistant mdi icons instead of emoji glyphs',
+  hide_event_calendar_bubble: 'setConfig applies visual layout and styling options',
+  show_event_location: 'setConfig applies visual layout and styling options',
+  use_short_location: 'setConfig applies visual layout and styling options',
+  event_font_size: 'event font size wrappers share fallback and override behavior',
+  event_time_font_size: 'event font size wrappers share fallback and override behavior',
+  event_location_font_size: 'event font size wrappers share fallback and override behavior',
+  event_calendar_friendly_name: 'setConfig applies visual layout and styling options',
+  event_title_prefix: 'setConfig schema keeps normalized fields from being overwritten by raw config',
+  event_font_colors: 'editor color swatches show effective calendar and event font colors',
+  event_styles: 'setConfig schema keeps normalized fields from being overwritten by raw config',
+  day_styles: 'setConfig applies visual layout and styling options',
+  day_badges: 'setConfig schema keeps normalized fields from being overwritten by raw config',
+  hide_times_for_calendars: 'hide_times_for_calendars applies across agenda, week-standard, week-compact, and month renderers',
+  show_current_time_bar: 'setConfig applies visual layout and styling options',
+  header_color: 'setConfig applies visual layout and styling options',
+  header_text_color: 'setConfig applies visual layout and styling options',
+  header_background_transparent: 'setConfig normalizes fallback values and aliases',
+  header_background_opacity: 'setConfig applies visual layout and styling options',
+  background_transparent: 'setConfig normalizes fallback values and aliases',
+  background_opacity: 'setConfig applies visual layout and styling options',
+  background_image_url: 'setConfig applies visual layout and styling options',
+  background_image_size: 'setConfig applies visual layout and styling options',
+  background_image_position: 'setConfig applies visual layout and styling options',
+  background_image_repeat: 'setConfig applies visual layout and styling options',
+  combine_calendars: 'setConfig applies visual layout and styling options',
+  combine_style: 'normalizes enum helper aliases and fallbacks consistently',
+  combine_background: 'setConfig applies visual layout and styling options',
+  combine_calendars_width: 'setConfig applies visual layout and styling options',
+  event_color_bar_width: 'event color modes normalize widths and tint opacity endpoints',
+  event_color_mode: 'event color modes normalize widths and tint opacity endpoints',
+  event_neutral_background: 'event color modes normalize widths and tint opacity endpoints',
+  event_tint_opacity: 'event color modes normalize widths and tint opacity endpoints',
+  enable_event_management: 'checkAllCalendarCapabilities marks google, caldav, and local capabilities correctly',
+  readonly_calendars: 'readonly calendars suppress event management actions',
+  hide_badge_calendars: 'calendar badges respect hidden badge calendars',
+  default_hidden_calendars: 'default_hidden_calendars initializes hidden calendar badges',
+  virtual_calendars: 'setConfig applies visual layout and styling options',
+  language: 'Danish language support localizes core labels and locale',
+  locale: 'Danish language support localizes core labels and locale',
+  color_scheme: 'setConfig normalizes fallback values and aliases',
+  preference_storage_key: 'preference_storage_key customizes persisted preference storage key',
+  use_24hr_schedule: 'shorten_event_times compacts whole-hour 24-hour event times',
+  default_calendar_visibility: 'default calendar visibility map can show or hide individual calendars',
+  calendar_visibility: 'default calendar visibility map can show or hide individual calendars'
+};
+
+function schemaKeyToYamlOption(key) {
+  return key === 'firstDayOfWeek' ? 'first_day_of_week' : key;
+}
+
+function localDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function dateKeys(dates) {
+  return dates.map(localDateKey);
+}
+
+function localDateDataAttribute(dateKey) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(year, month - 1, day).toISOString();
+}
+
 function makeCard(config = { entities: ['calendar.family'] }) {
   const card = new Card();
   card.setConfig(config);
@@ -112,11 +223,25 @@ function recurrenceCases() {
   ];
 }
 
-test('getStubConfig includes key configuration defaults', () => {
+test('YAML config coverage inventory tracks every normalized schema option', () => {
+  const card = makeCard();
+  const schemaOptions = card.getConfigNormalizationSchema().map((field) => schemaKeyToYamlOption(field.key));
+  const runtimeOptionsOutsideSchema = ['use_24hr_schedule', 'default_calendar_visibility', 'calendar_visibility'];
+  const requiredInventoryKeys = [...schemaOptions, ...runtimeOptionsOutsideSchema];
+
+  for (const option of requiredInventoryKeys) {
+    assert.ok(CONFIG_COVERAGE_INVENTORY[option], `${option} should be represented in CONFIG_COVERAGE_INVENTORY`);
+  }
+
+  const extraInventoryKeys = Object.keys(CONFIG_COVERAGE_INVENTORY).filter((option) => !requiredInventoryKeys.includes(option));
+  assert.deepEqual(extraInventoryKeys, [], `unexpected inventory entries: ${extraInventoryKeys.join(', ')}`);
+});
+
+test('getStubConfig and normalized defaults include key configuration defaults', () => {
   const stub = Card.getStubConfig();
-  const requiredKeys = [
-    'default_view', 'week_days', 'week_start_hour', 'week_end_hour',
-    'lock_schedule_hours', 'show_all_events_month', 'show_all_details_month',
+  const requiredStubKeys = [
+    'default_view', 'first_day_of_week', 'week_days', 'week_start_hour', 'week_end_hour',
+    'lock_schedule_hours', 'disable_swipe_controls', 'show_all_events_month', 'show_all_details_month',
     'hide_empty_days', 'agenda_compact_events', 'shorten_event_times', 'compact_width',
     'show_current_time_bar', 'show_event_location', 'use_short_location',
     'event_calendar_friendly_name', 'event_title_prefix', 'past_event_mode', 'event_color_mode',
@@ -126,7 +251,14 @@ test('getStubConfig includes key configuration defaults', () => {
     'hide_dark_mode_toggle', 'show_dashboard_nav_button', 'header_dashboard_path',
     'header_weather_sensor', 'calendar_person_entities', 'default_hidden_calendars', 'color_scheme', 'enable_event_management'
   ];
-  for (const key of requiredKeys) assert.ok(key in stub, `${key} should exist`);
+  for (const key of requiredStubKeys) assert.ok(key in stub, `${key} should exist in getStubConfig()`);
+
+  const normalized = makeCard({ entities: ['calendar.family'] })._config;
+  for (const field of makeCard().getConfigNormalizationSchema()) {
+    assert.ok(field.key in normalized, `${field.key} should exist after normalizeConfig()`);
+  }
+  assert.equal(normalized.firstDayOfWeek, 0);
+  assert.equal(Object.prototype.hasOwnProperty.call(normalized, 'use_24hr_schedule'), false);
 });
 
 test('setConfig applies visual layout and styling options', () => {
@@ -449,6 +581,159 @@ test('setConfig preserves unknown custom config keys during normalization', () =
 
   assert.equal(card._config.custom_integration_key, customObject);
   assert.equal(card._config.custom_scalar, 'keep-me');
+});
+
+test('first_day_of_week normalizes to firstDayOfWeek and controls headers and week starts', () => {
+  const card = makeCard({ entities: ['calendar.family'], first_day_of_week: 1 });
+  card._currentDate = new Date('2026-05-13T12:00:00Z');
+  card.setWeekStart();
+
+  assert.equal(card._config.firstDayOfWeek, 1);
+  assert.equal(localDateKey(card._weekStart), '2026-05-11');
+
+  const headers = card.renderDayHeaders();
+  assert.ok(headers.indexOf('Mon') < headers.indexOf('Tue'));
+  assert.ok(headers.indexOf('Sun') > headers.indexOf('Sat'));
+});
+
+test('week_days filters configured week rendering days', () => {
+  const card = makeCard({
+    entities: ['calendar.family'],
+    first_day_of_week: 1,
+    week_days: [1, 3, 5]
+  });
+  card._currentDate = new Date('2026-05-13T12:00:00Z');
+  card.setWeekStart();
+
+  assert.deepEqual(dateKeys(card.getWeekDays('week-compact')), ['2026-05-11', '2026-05-13', '2026-05-15']);
+});
+
+test('rolling_days_week_compact shows current day plus configured days', () => {
+  const card = makeCard({ entities: ['calendar.family'], rolling_days_week_compact: 2 });
+  card._currentDate = new Date('2026-05-13T12:00:00Z');
+
+  assert.deepEqual(dateKeys(card.getWeekDays('week-compact')), ['2026-05-13', '2026-05-14', '2026-05-15']);
+});
+
+test('rolling_days_schedule shows current day plus configured days', () => {
+  const card = makeCard({ entities: ['calendar.family'], rolling_days_schedule: 3 });
+  card._currentDate = new Date('2026-05-13T12:00:00Z');
+
+  assert.deepEqual(dateKeys(card.getWeekDays('week-standard')), ['2026-05-13', '2026-05-14', '2026-05-15', '2026-05-16']);
+});
+
+test('rolling_weeks month mode renders configured rolling rows from first day of week', () => {
+  const card = makeCard({
+    entities: ['calendar.family'],
+    default_view: 'month',
+    first_day_of_week: 1,
+    rolling_weeks: 1
+  });
+  card._currentDate = new Date('2026-05-13T12:00:00Z');
+  card._events = [];
+
+  assert.equal(card.getMonthWeekRowCount(), 2);
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(card.getVisibleDateRange()).map(([key, value]) => [key, localDateKey(value)])),
+    { startDate: '2026-05-11', endDate: '2026-05-24' }
+  );
+
+  const daysHtml = card.renderDays();
+  assert.equal((daysHtml.match(/class="day-cell/g) || []).length, 14);
+  assert.ok(daysHtml.includes(`data-date="${localDateDataAttribute('2026-05-11')}"`));
+  assert.ok(daysHtml.includes(`data-date="${localDateDataAttribute('2026-05-24')}"`));
+});
+
+test('show_week_numbers_month adds month-only week number headers and cells', () => {
+  const card = makeCard({ entities: ['calendar.family'], show_week_numbers_month: true });
+  card._currentDate = new Date('2026-05-13T12:00:00Z');
+  card._events = [];
+
+  card._viewMode = 'month';
+  assert.equal(card.shouldShowMonthWeekNumbers(), true);
+  assert.match(card.renderDayHeaders(), /month-week-number-header/);
+  assert.match(card.renderDays(), /month-week-number-cell/);
+  assert.match(card.renderCalendarView(), /calendar-grid month-week-numbers/);
+
+  card._viewMode = 'week-compact';
+  assert.equal(card.shouldShowMonthWeekNumbers(), false);
+  assert.doesNotMatch(card.renderDayHeaders(), /month-week-number-header/);
+});
+
+test('disable_swipe_controls disables swipe controls without affecting agenda', () => {
+  const enabledCard = makeCard({ entities: ['calendar.family'] });
+  enabledCard._viewMode = 'week-compact';
+  assert.equal(enabledCard.shouldEnableSwipeControls(), true);
+
+  const disabledCard = makeCard({ entities: ['calendar.family'], disable_swipe_controls: true });
+  disabledCard._viewMode = 'week-compact';
+  assert.equal(disabledCard.shouldEnableSwipeControls(), false);
+  disabledCard._viewMode = 'agenda';
+  assert.equal(disabledCard.shouldEnableSwipeControls(), false);
+  assert.equal(disabledCard.getAgendaPeriodDaySpan(), 14);
+});
+
+test('lock_schedule_hours keeps configured schedule hours from expanding to events', () => {
+  const earlyEvent = {
+    entityId: 'calendar.family',
+    summary: 'Early commute',
+    start: { dateTime: '2026-05-13T06:30:00Z' },
+    end: { dateTime: '2026-05-13T07:30:00Z' }
+  };
+  const weekDay = new Date('2026-05-13T00:00:00Z');
+
+  const dynamicCard = makeCard({ entities: ['calendar.family'], week_start_hour: 9, week_end_hour: 17 });
+  dynamicCard._events = [earlyEvent];
+  assert.deepEqual(dynamicCard.getScheduleHourRangeForWeek([weekDay]), { startHour: 6, endHour: 17 });
+
+  const lockedCard = makeCard({ entities: ['calendar.family'], week_start_hour: 9, week_end_hour: 17, lock_schedule_hours: true });
+  lockedCard._events = [earlyEvent];
+  assert.deepEqual(lockedCard.getScheduleHourRangeForWeek([weekDay]), { startHour: 9, endHour: 17 });
+});
+
+test('height_scale scales week-standard hour slots deterministically', () => {
+  const defaultCard = makeCard({ entities: ['calendar.family'], default_view: 'week-standard', week_start_hour: 9, week_end_hour: 9 });
+  defaultCard._currentDate = new Date('2026-05-13T12:00:00Z');
+  defaultCard.setWeekStart();
+  defaultCard._events = [];
+  assert.match(defaultCard.renderWeekStandard(), /class="time-slot" style="height: 120px;"/);
+
+  const scaledCard = makeCard({ entities: ['calendar.family'], default_view: 'week-standard', week_start_hour: 9, week_end_hour: 9, height_scale: 0.5 });
+  scaledCard._currentDate = new Date('2026-05-13T12:00:00Z');
+  scaledCard.setWeekStart();
+  scaledCard._events = [];
+  assert.match(scaledCard.renderWeekStandard(), /class="time-slot" style="height: 60px;"/);
+  assert.match(scaledCard.renderWeekStandard(), /class="day-time-slots" style="height: 60px; min-height: 60px;"/);
+});
+
+test('calendar_names overrides displayed calendar labels', () => {
+  const card = makeCard({
+    entities: ['calendar.family'],
+    calendar_names: { 'calendar.family': 'Household' }
+  });
+  card._hass = { states: { 'calendar.family': { attributes: { friendly_name: 'Family Friendly Name' } } } };
+
+  assert.equal(card.getCalendarName('calendar.family'), 'Household');
+  assert.match(card.renderCalendarBadges(), /Household/);
+  assert.doesNotMatch(card.renderCalendarBadges(), /Family Friendly Name/);
+});
+
+test('preference_storage_key customizes persisted preference storage key', () => {
+  const originalLocation = window.location;
+  window.location = { pathname: '/lovelace-family/0', hash: '' };
+
+  try {
+    const defaultCard = makeCard({ entities: ['calendar.family', 'calendar.work'] });
+    assert.equal(defaultCard.getPreferenceStorageKey(), 'skylight-calendar-card:lovelace-family:calendar.family|calendar.work');
+
+    const customCard = makeCard({
+      entities: ['calendar.family', 'calendar.work'],
+      preference_storage_key: 'main-dashboard'
+    });
+    assert.equal(customCard.getPreferenceStorageKey(), 'skylight-calendar-card:lovelace-family:main-dashboard');
+  } finally {
+    window.location = originalLocation;
+  }
 });
 
 test('normalizes enum helper aliases and fallbacks consistently', () => {
