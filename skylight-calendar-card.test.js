@@ -164,8 +164,20 @@ function schemaKeyToYamlOption(key) {
   return key === 'firstDayOfWeek' ? 'first_day_of_week' : key;
 }
 
+function localDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function dateKeys(dates) {
-  return dates.map((date) => date.toISOString().slice(0, 10));
+  return dates.map(localDateKey);
+}
+
+function localDateDataAttribute(dateKey) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(year, month - 1, day).toISOString();
 }
 
 function makeCard(config = { entities: ['calendar.family'] }) {
@@ -577,7 +589,7 @@ test('first_day_of_week normalizes to firstDayOfWeek and controls headers and we
   card.setWeekStart();
 
   assert.equal(card._config.firstDayOfWeek, 1);
-  assert.equal(card._weekStart.toISOString().slice(0, 10), '2026-05-11');
+  assert.equal(localDateKey(card._weekStart), '2026-05-11');
 
   const headers = card.renderDayHeaders();
   assert.ok(headers.indexOf('Mon') < headers.indexOf('Tue'));
@@ -622,14 +634,14 @@ test('rolling_weeks month mode renders configured rolling rows from first day of
 
   assert.equal(card.getMonthWeekRowCount(), 2);
   assert.deepEqual(
-    Object.fromEntries(Object.entries(card.getVisibleDateRange()).map(([key, value]) => [key, value.toISOString().slice(0, 10)])),
+    Object.fromEntries(Object.entries(card.getVisibleDateRange()).map(([key, value]) => [key, localDateKey(value)])),
     { startDate: '2026-05-11', endDate: '2026-05-24' }
   );
 
   const daysHtml = card.renderDays();
   assert.equal((daysHtml.match(/class="day-cell/g) || []).length, 14);
-  assert.match(daysHtml, /data-date="2026-05-11T00:00:00\.000Z"/);
-  assert.match(daysHtml, /data-date="2026-05-24T00:00:00\.000Z"/);
+  assert.ok(daysHtml.includes(`data-date="${localDateDataAttribute('2026-05-11')}"`));
+  assert.ok(daysHtml.includes(`data-date="${localDateDataAttribute('2026-05-24')}"`));
 });
 
 test('show_week_numbers_month adds month-only week number headers and cells', () => {
