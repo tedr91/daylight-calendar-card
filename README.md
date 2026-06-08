@@ -9,10 +9,8 @@
 
 # Daylight Calendar Card for Home Assistant
 
-> [!IMPORTANT]
-> **Project renamed:** `skylight-calendar-card` is now `daylight-calendar-card`.
->
-> Existing dashboard YAML using `type: custom:skylight-calendar-card` continues to work, for now. New naming and configuration examples will transition gradually.
+> [!NOTE]
+> Formerly known as skylight-calendar-card.
 
 A bright, family-friendly calendar card for Home Assistant dashboards.
 
@@ -22,18 +20,27 @@ Designed for clarity at a glance, with flexible views and deep customization.
 
 ## ✨ Features
 
-* 📅 **Compact Week View** – Clean, glanceable layout for daily planning
-* 🗓️ **Schedule View** – Detailed list-style agenda
-* 👨‍👩‍👧‍👦 **Multi-calendar support** – Combine multiple calendars into one view
-* 📝 **Full event management** – Create, edit, and manage events (integration dependent)
-* ✨ **Rich event descriptions** – Display Markdown, basic HTML, and safe inline markup in event details
-* 🌤️ **Weather forecast display** – Built-in weather insights alongside your schedule
-* 🎨 **Highly customizable** – Layout, styling, visibility, and behavior options
-* ⚡ **Fast & responsive** – Optimized for wall tablets and dashboards
+* 📅 Month, Week, Schedule, and Agenda views
+* 👨‍👩‍👧‍👦 Multi-calendar support
+* 📝 Create and edit events
+* 🌤️ Weather forecasts
+* 🎨 Event Styles and Day Styles
+* 🏷️ Day Badges
+* 🧩 Virtual Calendars
+* 👤 Person entity integration
+* ✨ Rich Markdown and HTML event descriptions
+* 🎛️ Full visual editor
+* 📱 Responsive tablet-friendly design
+
+<p align="center">
+  <a href="https://docs.daylightcalendar.com">
+    <img src="https://img.shields.io/badge/Docs-daylightcalendar.com-blue?style=for-the-badge" />
+  </a>
+</p>
 
 ---
 
-## 📸 Preview
+## 📸 Screenshots
 
 ### Week View
 
@@ -106,6 +113,8 @@ type: custom:daylight-calendar-card
 title: Family Calendar
 entities:
   - calendar.family
+  - calendar.work
+  - calendar.holidays
 ```
 
 ---
@@ -113,61 +122,27 @@ entities:
 
 ## 📚 Documentation
 
-Daylight Calendar Card includes a visual configurator for most common options.
+Full documentation is available at:
 
-Some advanced features are supported by the card but must be configured in YAML.
+https://docs.daylightcalendar.com
 
-If you do not see an option in the visual editor, open the card in YAML mode. YAML-only features include:
+### Popular Guides
 
-- `event_styles` — conditionally style individual events
-- `day_styles` — conditionally style days
-- `virtual_calendars` — group multiple calendars into a single virtual calendar
-- Advanced UIX/Card Mod styling
-
-
-Full documentation is available in the wiki:
-
-* Installation
-* Configuration
-* Views & Navigation
-* Event Management
-* Troubleshooting
-* UIX / Card Mod compatibility
-* Development
+- Installation
+- Quick Start
+- Configuration Reference
+- Event Styles
+- Day Styles
+- Day Badges
+- Virtual Calendars
+- Event Management
+- Troubleshooting
 
 <p align="center">
-  <a href="https://github.com/superdingo101/daylight-calendar-card/wiki">
-    <img src="https://img.shields.io/badge/Docs-Read%20the%20Wiki-blue?logo=github&style=for-the-badge" />
+  <a href="https://docs.daylightcalendar.com">
+    <img src="https://img.shields.io/badge/Docs-daylightcalendar.com-blue?style=for-the-badge" />
   </a>
 </p>
-
----
-
-## 💡 Tips
-
-* Use multiple calendars for a shared family dashboard
-* Pair with wall-mounted tablets for a Daylight-style experience
-* Combine with UIX/Card Mod for advanced styling
-* In Home Assistant Sections view, put `grid_options.rows` directly on the `custom:daylight-calendar-card` / `custom:skylight-calendar-card` card for reliable row sizing. Stacked layouts such as `vertical-stack` may also need the stack or wrapper card to participate in height distribution before children can fill the allocated rows.
-
----
-
-## 🛠 Troubleshooting
-
-
-### I don't see the last changes
-1. Check that your Daylight Calendar Card version is the latest in HACS.
-2. Check that the latest Daylight card is actually loaded. Starting in v4.4.0, the downloaded and running version is displayed in the **About / Diagnostics** section of the visual editor.
-3. Clear your cache :
-   * check Settings → Dashboards → Resources
-   * remove any versions of `/hacsfiles/daylight-calendar-card/skylight-calendar-card.js`
-   * remove any versions of `/hacsfiles/skylight-calendar-card/skylight-calendar-card.js`
-   * uninstall Daylight from HACS
-   * reinstall Daylight from HACS
-   * Refresh your browser
-   * Clear app/browser cache
-
-Still stuck? Open an issue
 
 ---
 
@@ -186,6 +161,18 @@ If you need help, have ideas, or want to contribute, use the options below:
     <img src="https://img.shields.io/badge/Home%20Assistant-Community%20Forum-blue?logo=home-assistant&style=for-the-badge" />
   </a>
 </p>
+
+---
+
+## 🛠 Troubleshooting
+
+Having problems?
+
+- Verify you're running the latest version
+- Open the About / Diagnostics section in the editor
+- Visit the troubleshooting guide
+
+Still stuck? Open an issue.
 
 ---
 
