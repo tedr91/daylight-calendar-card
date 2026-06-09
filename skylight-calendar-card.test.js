@@ -199,7 +199,7 @@ test('registers daylight custom element while retaining skylight compatibility',
     name: 'Daylight Calendar Card',
     description: 'A bright, family-friendly calendar card for Home Assistant dashboards.',
     preview: true,
-    documentationURL: 'https://github.com/superdingo101/daylight-calendar-card'
+    documentationURL: 'https://docs.daylightcalendar.com'
   });
 });
 
