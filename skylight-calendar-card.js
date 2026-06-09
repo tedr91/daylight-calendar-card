@@ -1909,6 +1909,242 @@ class SkylightCalendarCard extends HTMLElement {
     return hex || 'primary';
   }
 
+  getEmptyAdvancedMatch() {
+    return { event: {}, day: {}, any: [], all: [], not: null };
+  }
+
+  normalizeEventMatchConditions(rawMatch) {
+    if (!rawMatch || typeof rawMatch !== 'object' || Array.isArray(rawMatch)) return null;
+
+    const normalized = {};
+    const logicalKeys = new Set(['all', 'and', 'any', 'not']);
+    const eventAliases = {
+      title_contains: 'title',
+      summary_contains: 'summary',
+      location_contains: 'location',
+      description_contains: 'description'
+    };
+    const calendarAliases = new Set(['calendar_entity', 'entity_id', 'entity']);
+
+    Object.entries(rawMatch).forEach(([key, value]) => {
+      const normalizedKey = String(key || '').trim().toLowerCase();
+      if (!normalizedKey) return;
+
+      if (logicalKeys.has(normalizedKey)) {
+        if (normalizedKey === 'all' || normalizedKey === 'and') {
+          const conditions = Array.isArray(value) ? value : [value];
+          const normalizedConditions = conditions
+            .map((condition) => this.normalizeEventMatchConditions(condition))
+            .filter(Boolean);
+          if (normalizedConditions.length) {
+            if (!Array.isArray(normalized.all)) normalized.all = [];
+            normalized.all.push(...normalizedConditions);
+          }
+          return;
+        }
+
+        if (normalizedKey === 'any') {
+          const conditions = Array.isArray(value) ? value : [value];
+          const normalizedConditions = conditions
+            .map((condition) => this.normalizeEventMatchConditions(condition))
+            .filter(Boolean);
+          if (normalizedConditions.length) normalized.any = normalizedConditions;
+          return;
+        }
+
+        if (normalizedKey === 'not') {
+          if (Array.isArray(value)) {
+            const normalizedConditions = value
+              .map((condition) => this.normalizeEventMatchConditions(condition))
+              .filter(Boolean);
+            if (normalizedConditions.length) normalized.not = normalizedConditions;
+          } else {
+            const normalizedCondition = this.normalizeEventMatchConditions(value);
+            if (normalizedCondition) normalized.not = normalizedCondition;
+          }
+          return;
+        }
+      }
+
+      if (eventAliases[normalizedKey]) {
+        const canonicalKey = eventAliases[normalizedKey];
+        if (normalized[canonicalKey] === undefined) normalized[canonicalKey] = `contains:${value}`;
+        return;
+      }
+
+      if (calendarAliases.has(normalizedKey)) {
+        if (normalized.calendar === undefined) normalized.calendar = value;
+        return;
+      }
+
+      if (normalizedKey === 'all_day_event') {
+        if (normalized.all_day === undefined) normalized.all_day = value;
+        return;
+      }
+
+      if (['title', 'summary', 'location', 'description', 'calendar', 'all_day', 'past'].includes(normalizedKey)) {
+        normalized[normalizedKey] = value;
+      }
+    });
+
+    return Object.keys(normalized).length ? normalized : null;
+  }
+
+  normalizeDayMatchConditions(rawMatch, localeOverride = null) {
+    if (!rawMatch || typeof rawMatch !== 'object' || Array.isArray(rawMatch)) return null;
+
+    const normalized = {};
+    const logicalKeys = new Set(['all', 'and', 'any', 'not']);
+
+    Object.entries(rawMatch).forEach(([key, value]) => {
+      const normalizedKey = String(key || '').trim().toLowerCase();
+      if (!normalizedKey) return;
+
+      if (logicalKeys.has(normalizedKey)) {
+        if (normalizedKey === 'all' || normalizedKey === 'and') {
+          const conditions = Array.isArray(value) ? value : [value];
+          const normalizedConditions = conditions
+            .map((condition) => this.normalizeDayMatchConditions(condition, localeOverride))
+            .filter(Boolean);
+          if (normalizedConditions.length) {
+            if (!Array.isArray(normalized.all)) normalized.all = [];
+            normalized.all.push(...normalizedConditions);
+          }
+          return;
+        }
+
+        if (normalizedKey === 'any') {
+          const conditions = Array.isArray(value) ? value : [value];
+          const normalizedConditions = conditions
+            .map((condition) => this.normalizeDayMatchConditions(condition, localeOverride))
+            .filter(Boolean);
+          if (normalizedConditions.length) normalized.any = normalizedConditions;
+          return;
+        }
+
+        if (normalizedKey === 'not') {
+          if (Array.isArray(value)) {
+            const normalizedConditions = value
+              .map((condition) => this.normalizeDayMatchConditions(condition, localeOverride))
+              .filter(Boolean);
+            if (normalizedConditions.length) normalized.not = normalizedConditions;
+          } else {
+            const normalizedCondition = this.normalizeDayMatchConditions(value, localeOverride);
+            if (normalizedCondition) normalized.not = normalizedCondition;
+          }
+          return;
+        }
+      }
+
+      if (['today', 'past', 'future', 'weekend', 'weekday'].includes(normalizedKey)) {
+        normalized[normalizedKey] = value;
+        return;
+      }
+
+      if (normalizedKey === 'day_of_week') {
+        const dayOfWeek = this.normalizeDayOfWeekRule(value, localeOverride);
+        if (dayOfWeek.length) normalized.day_of_week = dayOfWeek;
+        return;
+      }
+
+      if (normalizedKey === 'has_event' || normalizedKey === 'no_event') {
+        if (value === true || value === false) {
+          normalized[normalizedKey] = value;
+        } else {
+          const eventMatch = this.normalizeEventMatchConditions(value);
+          if (eventMatch) normalized[normalizedKey] = eventMatch;
+        }
+      }
+    });
+
+    return Object.keys(normalized).length ? normalized : null;
+  }
+
+  normalizeAdvancedRuleMatch(rawMatch, defaultScope = 'event', localeOverride = null) {
+    if (!rawMatch || typeof rawMatch !== 'object' || Array.isArray(rawMatch)) return null;
+
+    const match = this.getEmptyAdvancedMatch();
+    const logicalKeys = new Set(['all', 'and', 'any', 'not']);
+    const explicitKeys = new Set(['event', 'day', ...logicalKeys]);
+    let hasMatch = false;
+
+    if (rawMatch.event && typeof rawMatch.event === 'object' && !Array.isArray(rawMatch.event)) {
+      const eventMatch = this.normalizeEventMatchConditions(rawMatch.event);
+      if (eventMatch) {
+        match.event = eventMatch;
+        hasMatch = true;
+      }
+    }
+
+    if (rawMatch.day && typeof rawMatch.day === 'object' && !Array.isArray(rawMatch.day)) {
+      const dayMatch = this.normalizeDayMatchConditions(rawMatch.day, localeOverride);
+      if (dayMatch) {
+        match.day = dayMatch;
+        hasMatch = true;
+      }
+    }
+
+    const implicitRaw = Object.fromEntries(Object.entries(rawMatch).filter(([key]) => !explicitKeys.has(String(key || '').trim().toLowerCase())));
+    if (Object.keys(implicitRaw).length) {
+      if (defaultScope === 'day') {
+        const dayMatch = this.normalizeDayMatchConditions(implicitRaw, localeOverride);
+        if (dayMatch) {
+          match.day = { ...match.day, ...dayMatch };
+          hasMatch = true;
+        }
+      } else {
+        const eventMatch = this.normalizeEventMatchConditions(implicitRaw);
+        if (eventMatch) {
+          match.event = { ...match.event, ...eventMatch };
+          hasMatch = true;
+        }
+      }
+    }
+
+    ['all', 'and'].forEach((key) => {
+      if (rawMatch[key] === undefined) return;
+      const conditions = Array.isArray(rawMatch[key]) ? rawMatch[key] : [rawMatch[key]];
+      const normalizedConditions = conditions
+        .map((condition) => this.normalizeAdvancedRuleMatch(condition, defaultScope, localeOverride))
+        .filter(Boolean);
+      if (normalizedConditions.length) {
+        match.all.push(...normalizedConditions);
+        hasMatch = true;
+      }
+    });
+
+    if (rawMatch.any !== undefined) {
+      const conditions = Array.isArray(rawMatch.any) ? rawMatch.any : [rawMatch.any];
+      const normalizedConditions = conditions
+        .map((condition) => this.normalizeAdvancedRuleMatch(condition, defaultScope, localeOverride))
+        .filter(Boolean);
+      if (normalizedConditions.length) {
+        match.any = normalizedConditions;
+        hasMatch = true;
+      }
+    }
+
+    if (rawMatch.not !== undefined) {
+      if (Array.isArray(rawMatch.not)) {
+        const normalizedConditions = rawMatch.not
+          .map((condition) => this.normalizeAdvancedRuleMatch(condition, defaultScope, localeOverride))
+          .filter(Boolean);
+        if (normalizedConditions.length) {
+          match.not = normalizedConditions;
+          hasMatch = true;
+        }
+      } else {
+        const normalizedCondition = this.normalizeAdvancedRuleMatch(rawMatch.not, defaultScope, localeOverride);
+        if (normalizedCondition) {
+          match.not = normalizedCondition;
+          hasMatch = true;
+        }
+      }
+    }
+
+    return hasMatch ? match : null;
+  }
+
   normalizeEventStyles(rawRules) {
     if (!Array.isArray(rawRules)) return [];
 
@@ -1916,7 +2152,8 @@ class SkylightCalendarCard extends HTMLElement {
       .map((rule, index) => {
         if (!rule || typeof rule !== 'object') return null;
 
-        const match = rule.match && typeof rule.match === 'object' ? rule.match : null;
+        const rawMatch = rule.match && typeof rule.match === 'object' ? rule.match : (rule.when && typeof rule.when === 'object' ? rule.when : null);
+        const match = this.normalizeAdvancedRuleMatch(rawMatch, 'event');
         let style = null;
         if (typeof rule.style === 'string' && rule.style.trim().toLowerCase() === 'hide') {
           style = { hide: true };
@@ -1927,16 +2164,53 @@ class SkylightCalendarCard extends HTMLElement {
 
         const numericPriority = Number(rule.priority);
         const priority = Number.isFinite(numericPriority) ? numericPriority : 0;
+        const normalizedStyle = this.normalizeEventStyleBlock(style);
+        if (!Object.keys(normalizedStyle).length) return null;
 
         return {
           id: typeof rule.id === 'string' && rule.id.trim() ? rule.id.trim() : `event-style-${index + 1}`,
+          type: 'event_style',
           priority,
+          index,
           match,
-          style: this.normalizeEventStyleBlock(style),
-          index
+          output: { style: normalizedStyle },
+          style: normalizedStyle
         };
       })
       .filter(Boolean);
+  }
+
+  normalizeLegacyDayStyleMatch(rule, localeOverride = null) {
+    const rawCondition = String(rule.condition || '').trim().toLowerCase();
+    if (!rawCondition) return null;
+
+    const isNegatedCondition = rawCondition.startsWith('!');
+    const condition = isNegatedCondition ? rawCondition.slice(1) : rawCondition;
+    if (!condition) return null;
+
+    if (!['today', 'past', 'future', 'weekend', 'weekday', 'day_of_week', 'has_event'].includes(condition)) return null;
+    if (isNegatedCondition && condition !== 'has_event') return null;
+
+    const dayMatch = {};
+    if (condition === 'has_event') {
+      const eventMatch = {};
+      if (rule.calendar !== undefined && rule.calendar !== null && String(rule.calendar).trim()) {
+        eventMatch.calendar = rule.calendar;
+      }
+      if (rule.title_match !== undefined && rule.title_match !== null && rule.title_match !== '') {
+        eventMatch.title = rule.title_match;
+      }
+      if (!Object.keys(eventMatch).length) return null;
+      dayMatch[isNegatedCondition ? 'no_event' : 'has_event'] = eventMatch;
+    } else if (condition === 'day_of_week') {
+      const dayOfWeek = this.normalizeDayOfWeekRule(rule.day_of_week ?? rule.day ?? rule.days, localeOverride);
+      if (!dayOfWeek.length) return null;
+      dayMatch.day_of_week = dayOfWeek;
+    } else {
+      dayMatch[condition] = true;
+    }
+
+    return this.normalizeAdvancedRuleMatch({ day: dayMatch }, 'day', localeOverride);
   }
 
   normalizeDayStyles(rawRules, localeOverride = null) {
@@ -1946,59 +2220,55 @@ class SkylightCalendarCard extends HTMLElement {
       .map((rule, index) => {
         if (!rule || typeof rule !== 'object') return null;
 
-        const rawCondition = String(rule.condition || '').trim().toLowerCase();
-        if (!rawCondition) return null;
-
-        const isNegatedCondition = rawCondition.startsWith('!');
-        const condition = isNegatedCondition ? rawCondition.slice(1) : rawCondition;
-        if (!condition) return null;
-
-        if (!['today', 'past', 'future', 'weekend', 'weekday', 'day_of_week', 'has_event'].includes(condition)) {
-          return null;
-        }
-
-        if (isNegatedCondition && condition !== 'has_event') {
-          return null;
-        }
+        const rawExplicitMatch = rule.match && typeof rule.match === 'object' ? rule.match : (rule.when && typeof rule.when === 'object' ? rule.when : null);
+        const match = rawExplicitMatch
+          ? this.normalizeAdvancedRuleMatch(rawExplicitMatch, 'day', localeOverride)
+          : this.normalizeLegacyDayStyleMatch(rule, localeOverride);
+        if (!match) return null;
 
         const numericPriority = Number(rule.priority);
         const priority = Number.isFinite(numericPriority) ? numericPriority : 0;
 
-        const normalized = { condition, priority, index };
-        if (isNegatedCondition) normalized.negate = true;
-
-        if (condition === 'has_event' && (!rule.calendar || !String(rule.calendar).trim())) {
-          return null;
-        }
-        if (condition === 'day_of_week') {
-          const dayOfWeek = this.normalizeDayOfWeekRule(rule.day_of_week ?? rule.day ?? rule.days, localeOverride);
-          if (!dayOfWeek.length) return null;
-          normalized.day_of_week = dayOfWeek;
-        }
-
         const style = this.normalizeDayStyleBlock(rule.style && typeof rule.style === 'object' ? rule.style : rule);
-        const normalizedBackground = style.background;
-        if (normalizedBackground) normalized.background = normalizedBackground;
+        if (
+          style.background === undefined &&
+          style.opacity === undefined &&
+          style.background_opacity === undefined &&
+          style.border_color === undefined &&
+          style.border_width === undefined
+        ) return null;
 
+        const normalized = {
+          id: typeof rule.id === 'string' && rule.id.trim() ? rule.id.trim() : `day-style-${index + 1}`,
+          type: 'day_style',
+          priority,
+          index,
+          match,
+          output: { style },
+          style
+        };
+
+        // Backward-compatible mirrors used by older internal tests and helper paths.
+        if (style.background !== undefined) normalized.background = style.background;
         if (style.opacity !== undefined) normalized.opacity = style.opacity;
         if (style.background_opacity !== undefined) normalized.background_opacity = style.background_opacity;
         if (style.border_color !== undefined) normalized.border_color = style.border_color;
         if (style.border_width !== undefined) normalized.border_width = style.border_width;
-
-        if (condition === 'has_event') {
-          normalized.calendar = String(rule.calendar).trim();
-          if (rule.title_match !== undefined && rule.title_match !== null && rule.title_match !== '') {
-            normalized.title_match = rule.title_match;
-          }
+        const day = match.day || {};
+        if (day.today !== undefined) normalized.condition = 'today';
+        else if (day.past !== undefined) normalized.condition = 'past';
+        else if (day.future !== undefined) normalized.condition = 'future';
+        else if (day.weekend !== undefined) normalized.condition = 'weekend';
+        else if (day.weekday !== undefined) normalized.condition = 'weekday';
+        else if (day.day_of_week !== undefined) {
+          normalized.condition = 'day_of_week';
+          normalized.day_of_week = day.day_of_week;
+        } else if (day.has_event !== undefined) normalized.condition = 'has_event';
+        else if (day.no_event !== undefined) {
+          normalized.condition = 'has_event';
+          normalized.negate = true;
         }
 
-        if (
-          normalized.background === undefined &&
-          normalized.opacity === undefined &&
-          normalized.background_opacity === undefined &&
-          normalized.border_color === undefined &&
-          normalized.border_width === undefined
-        ) return null;
         return normalized;
       })
       .filter(Boolean);
@@ -2057,68 +2327,30 @@ class SkylightCalendarCard extends HTMLElement {
 
 
 
-  normalizeDayBadgeConditions(rawConditions) {
-    if (!rawConditions || typeof rawConditions !== 'object' || Array.isArray(rawConditions)) return null;
+  normalizeDayBadgeBlock(rule = {}) {
+    const normalized = {};
+    const text = this.normalizeEventTextValue(rule.text);
+    const icon = this.normalizeEventTextValue(rule.icon);
+    const normalizedText = text || '';
+    const normalizedIcon = icon || '';
+    if (normalizedText) normalized.text = normalizedText;
+    if (!normalizedText && normalizedIcon) normalized.icon = normalizedIcon;
 
-    const normalized = { ...rawConditions };
+    const backgroundColor = this.normalizeSingleColor(rule.background_color);
+    if (backgroundColor) normalized.background_color = backgroundColor;
+    const color = this.normalizeSingleColor(rule.color);
+    if (color) normalized.color = color;
 
-    if (normalized.title_contains !== undefined) {
-      if (normalized.title === undefined) {
-        normalized.title = `contains:${normalized.title_contains}`;
-      }
-      delete normalized.title_contains;
-    }
+    const size = this.normalizeStyleSizeValue(rule.size);
+    if (size) normalized.size = size;
 
-    if (normalized.summary_contains !== undefined) {
-      if (normalized.summary === undefined) {
-        normalized.summary = `contains:${normalized.summary_contains}`;
-      }
-      delete normalized.summary_contains;
-    }
-
-    if (normalized.location_contains !== undefined) {
-      if (normalized.location === undefined) {
-        normalized.location = `contains:${normalized.location_contains}`;
-      }
-      delete normalized.location_contains;
-    }
-
-    if (normalized.calendar_entity !== undefined) {
-      if (normalized.calendar === undefined) {
-        normalized.calendar = normalized.calendar_entity;
-      }
-      delete normalized.calendar_entity;
-    }
-
-    if (normalized.entity_id !== undefined) {
-      if (normalized.calendar === undefined) {
-        normalized.calendar = normalized.entity_id;
-      }
-      delete normalized.entity_id;
-    }
-
-    if (normalized.entity !== undefined) {
-      if (normalized.calendar === undefined) {
-        normalized.calendar = normalized.entity;
-      }
-      delete normalized.entity;
-    }
-
-    if (normalized.all_day !== undefined) {
-      if (normalized.all_day_event === undefined) {
-        normalized.all_day_event = normalized.all_day;
-      }
-      delete normalized.all_day;
-    }
-
-    if (normalized.all_day_event !== undefined) {
-      if (normalized.all_day === undefined) {
-        normalized.all_day = normalized.all_day_event;
-      }
-      delete normalized.all_day_event;
-    }
-
+    const fontSize = this.normalizeStyleSizeValue(rule.font_size);
+    if (fontSize) normalized.font_size = fontSize;
     return normalized;
+  }
+
+  normalizeDayBadgeConditions(rawConditions) {
+    return this.normalizeEventMatchConditions(rawConditions);
   }
 
   normalizeDayBadges(rawRules) {
@@ -2127,31 +2359,27 @@ class SkylightCalendarCard extends HTMLElement {
     return rawRules
       .map((rule, index) => {
         if (!rule || typeof rule !== 'object') return null;
-        const conditions = this.normalizeDayBadgeConditions(rule.conditions);
-        if (!conditions) return null;
+        const rawMatch = rule.match && typeof rule.match === 'object'
+          ? rule.match
+          : (rule.conditions && typeof rule.conditions === 'object' ? { event: rule.conditions } : null);
+        const match = this.normalizeAdvancedRuleMatch(rawMatch, 'event');
+        if (!match) return null;
 
-        const text = this.normalizeEventTextValue(rule.text);
-        const icon = this.normalizeEventTextValue(rule.icon);
-        const normalizedText = text || '';
-        const normalizedIcon = icon || '';
-        if (!normalizedText && !normalizedIcon) return null;
+        const output = this.normalizeDayBadgeBlock(rule);
+        if (!output.text && !output.icon) return null;
 
+        const numericPriority = Number(rule.priority);
+        const priority = Number.isFinite(numericPriority) ? numericPriority : 0;
         const normalized = {
-          conditions
+          id: typeof rule.id === 'string' && rule.id.trim() ? rule.id.trim() : `day-badge-${index + 1}`,
+          type: 'day_badge',
+          priority,
+          index,
+          match,
+          output,
+          conditions: match.event
         };
-        if (normalizedText) normalized.text = normalizedText;
-        if (!normalizedText && normalizedIcon) normalized.icon = normalizedIcon;
-
-        const backgroundColor = this.normalizeSingleColor(rule.background_color);
-        if (backgroundColor) normalized.background_color = backgroundColor;
-        const color = this.normalizeSingleColor(rule.color);
-        if (color) normalized.color = color;
-
-        const size = this.normalizeStyleSizeValue(rule.size);
-        if (size) normalized.size = size;
-
-        const fontSize = this.normalizeStyleSizeValue(rule.font_size);
-        if (fontSize) normalized.font_size = fontSize;
+        Object.assign(normalized, output);
         return normalized;
       })
       .filter(Boolean);
@@ -2350,7 +2578,12 @@ class SkylightCalendarCard extends HTMLElement {
   }
 
   eventMatchesRule(event, match) {
-    if (!match || typeof match !== 'object') return false;
+    const normalizedMatch = this.normalizeEventMatchConditions(match);
+    return this.eventMatchesNormalizedRule(event, normalizedMatch);
+  }
+
+  eventMatchesNormalizedRule(event, match) {
+    if (!event || !match || typeof match !== 'object') return false;
 
     const logicalKeys = new Set(['any', 'all', 'and', 'not']);
     const fieldKeys = Object.keys(match).filter((key) => !logicalKeys.has(key));
@@ -2359,21 +2592,21 @@ class SkylightCalendarCard extends HTMLElement {
     if (!fieldsPass) return false;
 
     const allConditions = Array.isArray(match.all) ? match.all : [];
-    if (!allConditions.every((condition) => this.eventMatchesRule(event, condition))) return false;
+    if (!allConditions.every((condition) => this.eventMatchesNormalizedRule(event, condition))) return false;
 
     const andConditions = Array.isArray(match.and) ? match.and : [];
-    if (!andConditions.every((condition) => this.eventMatchesRule(event, condition))) return false;
+    if (!andConditions.every((condition) => this.eventMatchesNormalizedRule(event, condition))) return false;
 
     if (Object.prototype.hasOwnProperty.call(match, 'any')) {
       const anyConditions = Array.isArray(match.any) ? match.any : [];
-      if (!anyConditions.some((condition) => this.eventMatchesRule(event, condition))) return false;
+      if (anyConditions.length && !anyConditions.some((condition) => this.eventMatchesNormalizedRule(event, condition))) return false;
     }
 
     if (Object.prototype.hasOwnProperty.call(match, 'not')) {
       const notCondition = match.not;
       if (Array.isArray(notCondition)) {
-        if (notCondition.some((condition) => this.eventMatchesRule(event, condition))) return false;
-      } else if (notCondition && this.eventMatchesRule(event, notCondition)) {
+        if (notCondition.some((condition) => this.eventMatchesNormalizedRule(event, condition))) return false;
+      } else if (notCondition && this.eventMatchesNormalizedRule(event, notCondition)) {
         return false;
       }
     }
@@ -2515,30 +2748,163 @@ class SkylightCalendarCard extends HTMLElement {
     return false;
   }
 
-  findMatchingDayStyleEvent(rule, dayEvents) {
-    if (!rule || rule.condition !== 'has_event' || !rule.calendar) return null;
+  findMatchingEventForCondition(condition, dayEvents = []) {
+    if (!Array.isArray(dayEvents) || !dayEvents.length) return null;
+    if (condition === true) return dayEvents[0] || null;
+    if (condition === false) return null;
+    return dayEvents.find((event) => this.eventMatchesNormalizedRule(event, condition)) || null;
+  }
 
-    return dayEvents.find((event) => {
-      const matchesCalendar = this.getEventCalendarMatchTokens(event)
-        .some((token) => this.matchTextCondition(token, rule.calendar));
-      if (!matchesCalendar) return false;
+  dateMatchesDayCondition(date, conditionName, conditionValue, context = {}) {
+    if (conditionValue === false) return false;
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
 
-      if (rule.title_match !== undefined) {
-        return this.matchTextCondition(event.summary, rule.title_match);
+    if (conditionName === 'today') return this.matchPrimitiveCondition(!!context.isToday, conditionValue);
+    if (conditionName === 'past') return this.matchPrimitiveCondition(dayStart.getTime() < todayStart.getTime(), conditionValue);
+    if (conditionName === 'future') return this.matchPrimitiveCondition(dayStart.getTime() > todayStart.getTime(), conditionValue);
+    if (conditionName === 'weekend') return this.matchPrimitiveCondition(dayStart.getDay() === 0 || dayStart.getDay() === 6, conditionValue);
+    if (conditionName === 'weekday') return this.matchPrimitiveCondition(dayStart.getDay() !== 0 && dayStart.getDay() !== 6, conditionValue);
+    if (conditionName === 'day_of_week') return Array.isArray(conditionValue) && conditionValue.includes(dayStart.getDay());
+    return false;
+  }
+
+  dayMatchesNormalizedRule(dayMatch, context = {}) {
+    if (!dayMatch || typeof dayMatch !== 'object') return { matches: true, matchedEvent: null };
+
+    let matchedEvent = null;
+    const logicalKeys = new Set(['any', 'all', 'and', 'not']);
+    const fieldKeys = Object.keys(dayMatch).filter((key) => !logicalKeys.has(key));
+
+    for (const field of fieldKeys) {
+      const condition = dayMatch[field];
+      if (field === 'has_event') {
+        const event = this.findMatchingEventForCondition(condition, context.dayEvents || []);
+        if (!event) return { matches: false, matchedEvent: null };
+        if (!matchedEvent) matchedEvent = event;
+        continue;
       }
+      if (field === 'no_event') {
+        const event = this.findMatchingEventForCondition(condition, context.dayEvents || []);
+        if (event) return { matches: false, matchedEvent: null };
+        continue;
+      }
+      if (!this.dateMatchesDayCondition(context.date, field, condition, context)) {
+        return { matches: false, matchedEvent: null };
+      }
+    }
 
-      return true;
-    }) || null;
+    const allConditions = Array.isArray(dayMatch.all) ? dayMatch.all : [];
+    for (const condition of allConditions) {
+      const result = this.dayMatchesNormalizedRule(condition, context);
+      if (!result.matches) return { matches: false, matchedEvent: null };
+      if (!matchedEvent && result.matchedEvent) matchedEvent = result.matchedEvent;
+    }
+
+    const andConditions = Array.isArray(dayMatch.and) ? dayMatch.and : [];
+    for (const condition of andConditions) {
+      const result = this.dayMatchesNormalizedRule(condition, context);
+      if (!result.matches) return { matches: false, matchedEvent: null };
+      if (!matchedEvent && result.matchedEvent) matchedEvent = result.matchedEvent;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(dayMatch, 'any')) {
+      const anyConditions = Array.isArray(dayMatch.any) ? dayMatch.any : [];
+      if (!anyConditions.length) return { matches: true, matchedEvent };
+      let anyMatched = false;
+      for (const condition of anyConditions) {
+        const result = this.dayMatchesNormalizedRule(condition, context);
+        if (result.matches) {
+          anyMatched = true;
+          if (!matchedEvent && result.matchedEvent) matchedEvent = result.matchedEvent;
+          break;
+        }
+      }
+      if (!anyMatched) return { matches: false, matchedEvent: null };
+    }
+
+    if (Object.prototype.hasOwnProperty.call(dayMatch, 'not')) {
+      const notCondition = dayMatch.not;
+      if (Array.isArray(notCondition)) {
+        for (const condition of notCondition) {
+          if (this.dayMatchesNormalizedRule(condition, context).matches) return { matches: false, matchedEvent: null };
+        }
+      } else if (notCondition && this.dayMatchesNormalizedRule(notCondition, context).matches) {
+        return { matches: false, matchedEvent: null };
+      }
+    }
+
+    return { matches: true, matchedEvent };
+  }
+
+  matchesAdvancedRule(ruleOrMatch, context = {}) {
+    const match = ruleOrMatch?.match || ruleOrMatch;
+    if (!match || typeof match !== 'object') return { matches: false, matchedEvent: null };
+
+    let matchedEvent = null;
+    const eventMatch = match.event && Object.keys(match.event).length ? match.event : null;
+    if (eventMatch) {
+      if (context.event) {
+        if (!this.eventMatchesNormalizedRule(context.event, eventMatch)) return { matches: false, matchedEvent: null };
+        matchedEvent = context.event;
+      } else {
+        const event = this.findMatchingEventForCondition(eventMatch, context.dayEvents || []);
+        if (!event) return { matches: false, matchedEvent: null };
+        matchedEvent = event;
+      }
+    }
+
+    const dayMatch = match.day && Object.keys(match.day).length ? match.day : null;
+    if (dayMatch) {
+      const dayResult = this.dayMatchesNormalizedRule(dayMatch, context);
+      if (!dayResult.matches) return { matches: false, matchedEvent: null };
+      if (!matchedEvent && dayResult.matchedEvent) matchedEvent = dayResult.matchedEvent;
+    }
+
+    const allConditions = Array.isArray(match.all) ? match.all : [];
+    for (const condition of allConditions) {
+      const result = this.matchesAdvancedRule(condition, context);
+      if (!result.matches) return { matches: false, matchedEvent: null };
+      if (!matchedEvent && result.matchedEvent) matchedEvent = result.matchedEvent;
+    }
+
+    const anyConditions = Array.isArray(match.any) ? match.any : [];
+    if (anyConditions.length) {
+      let anyMatched = false;
+      for (const condition of anyConditions) {
+        const result = this.matchesAdvancedRule(condition, context);
+        if (result.matches) {
+          anyMatched = true;
+          if (!matchedEvent && result.matchedEvent) matchedEvent = result.matchedEvent;
+          break;
+        }
+      }
+      if (!anyMatched) return { matches: false, matchedEvent: null };
+    }
+
+    if (Object.prototype.hasOwnProperty.call(match, 'not')) {
+      const notCondition = match.not;
+      if (Array.isArray(notCondition)) {
+        for (const condition of notCondition) {
+          if (this.matchesAdvancedRule(condition, context).matches) return { matches: false, matchedEvent: null };
+        }
+      } else if (notCondition && this.matchesAdvancedRule(notCondition, context).matches) {
+        return { matches: false, matchedEvent: null };
+      }
+    }
+
+    return { matches: true, matchedEvent };
+  }
+
+  findMatchingDayStyleEvent(rule, dayEvents) {
+    return this.matchesAdvancedRule(rule, { dayEvents }).matchedEvent;
   }
 
   getDayStyleConfig(date, dayEvents, isToday) {
     const rules = Array.isArray(this._config?.day_styles) ? this._config.day_styles : [];
     if (!rules.length) return null;
-
-    const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0);
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
 
     const candidates = {};
 
@@ -2552,38 +2918,22 @@ class SkylightCalendarCard extends HTMLElement {
     };
 
     rules.forEach((rule) => {
-      let matches = false;
-      let matchedEvent = null;
+      const result = this.matchesAdvancedRule(rule, { date, dayEvents, isToday });
+      if (!result.matches) return;
 
-      if (rule.condition === 'today') matches = isToday;
-      if (rule.condition === 'past') matches = dayStart.getTime() < todayStart.getTime();
-      if (rule.condition === 'future') matches = dayStart.getTime() > todayStart.getTime();
-      if (rule.condition === 'weekend') matches = dayStart.getDay() === 0 || dayStart.getDay() === 6;
-      if (rule.condition === 'weekday') matches = dayStart.getDay() !== 0 && dayStart.getDay() !== 6;
-      if (rule.condition === 'day_of_week') matches = Array.isArray(rule.day_of_week) && rule.day_of_week.includes(dayStart.getDay());
-      if (rule.condition === 'has_event') {
-        matchedEvent = this.findMatchingDayStyleEvent(rule, dayEvents);
-        matches = !!matchedEvent;
-        if (rule.negate) {
-          matches = !matches;
-          if (!matches) matchedEvent = null;
+      const dayStyle = rule.output?.style || rule.style || {};
+      if (dayStyle.background) {
+        if (dayStyle.background === 'auto' && result.matchedEvent?.color) {
+          applyCandidate('background', result.matchedEvent.color, rule);
+        } else if (dayStyle.background !== 'auto') {
+          applyCandidate('background', dayStyle.background, rule);
         }
       }
 
-      if (!matches) return;
-
-      if (rule.background) {
-        if (rule.background === 'auto' && matchedEvent?.color) {
-          applyCandidate('background', matchedEvent.color, rule);
-        } else if (rule.background !== 'auto') {
-          applyCandidate('background', rule.background, rule);
-        }
-      }
-
-      applyCandidate('opacity', rule.opacity, rule);
-      applyCandidate('background_opacity', rule.background_opacity, rule);
-      applyCandidate('border_color', rule.border_color, rule);
-      applyCandidate('border_width', rule.border_width, rule);
+      applyCandidate('opacity', dayStyle.opacity, rule);
+      applyCandidate('background_opacity', dayStyle.background_opacity, rule);
+      applyCandidate('border_color', dayStyle.border_color, rule);
+      applyCandidate('border_width', dayStyle.border_width, rule);
     });
 
     const background = candidates.background?.value ?? null;
@@ -8059,9 +8409,9 @@ class SkylightCalendarCard extends HTMLElement {
 
   getDayBadges(date, dayEvents) {
     const rules = Array.isArray(this._config?.day_badges) ? this._config.day_badges : [];
-    if (!rules.length || !Array.isArray(dayEvents) || !dayEvents.length) return [];
+    if (!rules.length || !Array.isArray(dayEvents)) return [];
 
-    return rules.filter((rule) => dayEvents.some((event) => this.eventMatchesRule(event, rule.conditions)));
+    return rules.filter((rule) => this.matchesAdvancedRule(rule, { date, dayEvents }).matches);
   }
 
   renderDayBadges(date, dayEvents) {
@@ -8331,7 +8681,7 @@ class SkylightCalendarCard extends HTMLElement {
   getMatchedEventStyleRules(event) {
     const configuredRules = Array.isArray(this._config?.event_styles) ? this._config.event_styles : [];
     if (configuredRules.length === 0) return [];
-    return configuredRules.filter((rule) => this.eventMatchesRule(event, rule.match));
+    return configuredRules.filter((rule) => this.matchesAdvancedRule(rule, { event }).matches);
   }
 
   getSingleEventStyleCandidates(event) {
@@ -8339,10 +8689,10 @@ class SkylightCalendarCard extends HTMLElement {
     const candidates = {};
 
     rules.forEach((rule) => {
-      Object.entries(rule.style || {}).forEach(([key, value]) => {
+      Object.entries(rule.output?.style || rule.style || {}).forEach(([key, value]) => {
         if (value === undefined || value === null || value === '') return;
         const existing = candidates[key];
-        if (!existing || rule.priority > existing.priority || (rule.priority === existing.priority && rule.index < existing.index)) {
+        if (!existing || rule.priority > existing.priority || (rule.priority === existing.priority && rule.index < existing.ruleIndex)) {
           candidates[key] = { value, priority: rule.priority, ruleIndex: rule.index };
         }
       });
