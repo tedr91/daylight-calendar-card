@@ -14023,5 +14023,5 @@ window.customCards.push({
   name: 'Daylight Calendar Card',
   description: 'A bright, family-friendly calendar card for Home Assistant dashboards.',
   preview: true,
-  documentationURL: 'https://github.com/superdingo101/daylight-calendar-card'
+  documentationURL: 'https://docs.daylightcalendar.com'
 });
