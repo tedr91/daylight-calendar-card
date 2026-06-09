@@ -556,18 +556,22 @@ test('setConfig schema keeps normalized fields from being overwritten by raw con
   assert.equal(card._config.event_title_prefix, 'badge_icon');
   assert.equal(card._config.header_dashboard_path, '/lovelace-family');
   assert.equal(card._config.header_time_sensor, 'sensor.time');
-  assert.deepEqual(card._config.event_styles, [{
+  assert.deepEqual(card._config.event_styles.map(({ id, type, priority, index, match, output }) => ({ id, type, priority, index, match, output })), [{
     id: 'event-style-1',
+    type: 'event_style',
     priority: 0,
-    match: { title: 'meeting' },
-    style: { background_color: '#0000FF' },
-    index: 0
+    index: 0,
+    match: { event: { title: 'meeting' }, day: {}, any: [], all: [], not: null },
+    output: { style: { background_color: '#0000FF' } }
   }]);
-  assert.deepEqual(card._config.day_badges, [{
-    conditions: { title: 'contains:meeting' },
-    text: 'M',
-    background_color: '#00FF00',
-    size: '28px'
+  assert.deepEqual(card._config.day_badges.map(({ id, type, priority, index, match, output, conditions }) => ({ id, type, priority, index, match, output, conditions })), [{
+    id: 'day-badge-1',
+    type: 'day_badge',
+    priority: 0,
+    index: 0,
+    match: { event: { title: 'contains:meeting' }, day: {}, any: [], all: [], not: null },
+    output: { text: 'M', background_color: '#00FF00', size: '28px' },
+    conditions: { title: 'contains:meeting' }
   }]);
 });
 
@@ -2996,4 +3000,125 @@ test('hide_times_for_calendars applies across agenda, week-standard, week-compac
 
   const agendaHtml = card.renderAgenda();
   assert.equal((agendaHtml.match(/agenda-event-time/g) || []).length, 1);
+});
+
+test('advanced matching aliases are normalized consistently across event_styles day_badges and day_styles', () => {
+  const event = { entityId: 'calendar.school', color: '#123456', summary: 'Soccer Practice', location: 'Main Field', description: 'Bring cleats', start: { date: '2026-05-01' }, end: { date: '2026-05-02' } };
+
+  for (const calendarAlias of ['calendar_entity', 'entity_id', 'entity']) {
+    const card = makeCard({
+      entities: ['calendar.school'],
+      event_styles: [{ match: { title_contains: 'Soccer', [calendarAlias]: 'calendar.school', all_day_event: true }, style: { background_color: 'red' } }],
+      day_badges: [{ conditions: { title_contains: 'Soccer', [calendarAlias]: 'calendar.school', all_day_event: true }, text: 'S' }],
+      day_styles: [{ match: { day: { has_event: { title_contains: 'Soccer', [calendarAlias]: 'calendar.school', all_day_event: true } } }, background: 'auto' }]
+    });
+
+    assert.equal(card.getEventStyleOverrides(event).background_color, '#FF0000');
+    assert.match(card.renderDayBadges(new Date('2026-05-01T00:00:00Z'), [event]), /day-badge-text">S</);
+    assert.equal(card.getDayStyleConfig(new Date('2026-05-01T00:00:00Z'), [event], false).background, '#123456');
+  }
+});
+
+test('advanced matching preserves legacy event_styles day_badges and day_styles syntax', () => {
+  const event = { entityId: 'calendar.school', color: '#224466', summary: 'Soccer Practice', start: { dateTime: '2026-05-01T10:00:00Z' }, end: { dateTime: '2026-05-01T11:00:00Z' } };
+  const card = makeCard({
+    entities: ['calendar.school'],
+    event_styles: [{ match: { title: 'contains:Soccer' }, style: { background_color: '#112233' } }],
+    day_badges: [{ conditions: { title_contains: 'Soccer' }, text: 'S' }],
+    day_styles: [
+      { condition: 'has_event', calendar: 'calendar.school', title_match: 'Soccer', background: 'auto' },
+      { condition: '!has_event', calendar: 'calendar.school', title_match: 'Soccer', border_color: '#ff0000' }
+    ]
+  });
+
+  assert.equal(card.getEventStyleOverrides(event).background_color, '#112233');
+  assert.match(card.renderDayBadges(new Date('2026-05-01T00:00:00Z'), [event]), /day-badge-text">S</);
+  const styleWithEvent = card.getDayStyleConfig(new Date('2026-05-01T00:00:00Z'), [event], false);
+  assert.equal(styleWithEvent.background, '#224466');
+  assert.equal(styleWithEvent.border_color, null);
+  assert.equal(card.getDayStyleConfig(new Date('2026-05-02T00:00:00Z'), [], false).border_color, '#ff0000');
+});
+
+test('advanced matching supports explicit logical event matchers and nested event matchers', () => {
+  const soccer = { entityId: 'calendar.school', summary: 'Soccer Practice', location: 'Main Field', description: 'Bring cleats', start: { dateTime: '2026-05-01T10:00:00Z' }, end: { dateTime: '2026-05-01T11:00:00Z' } };
+  const piano = { entityId: 'calendar.music', summary: 'Piano Lesson', location: 'Studio', description: 'Bring book', start: { dateTime: '2026-05-01T12:00:00Z' }, end: { dateTime: '2026-05-01T13:00:00Z' } };
+  const card = makeCard({
+    entities: ['calendar.school', 'calendar.music'],
+    day_badges: [
+      { match: { event: { any: [{ title_contains: 'Soccer' }, { title_contains: 'Baseball' }], not: { location_contains: 'Gym' } } }, text: 'A' },
+      { match: { event: { all: [{ title_contains: 'Soccer' }, { calendar_entity: 'calendar.school' }] } }, text: 'B' },
+      { match: { event: { and: [{ title_contains: 'Soccer' }, { description: { contains: 'cleats' } }] } }, text: 'C' },
+      { match: { all: [{ event: { title_contains: 'Soccer' } }, { event: { not: { calendar: 'calendar.music' } } }] }, text: 'D' }
+    ]
+  });
+
+  const html = card.renderDayBadges(new Date('2026-05-01T00:00:00Z'), [soccer, piano]);
+  assert.match(html, />A</);
+  assert.match(html, />B</);
+  assert.match(html, />C</);
+  assert.match(html, />D</);
+});
+
+test('advanced day matching supports relative day fields day_of_week has_event and no_event', () => {
+  const event = { entityId: 'calendar.school', color: '#335577', summary: 'Soccer Practice', start: { dateTime: '2026-05-01T10:00:00Z' }, end: { dateTime: '2026-05-01T11:00:00Z' } };
+  const card = makeCard({
+    entities: ['calendar.school'],
+    day_styles: [
+      { match: { day: { today: true } }, priority: 1, opacity: 0.1 },
+      { match: { day: { past: true } }, priority: 2, opacity: 0.2 },
+      { match: { day: { future: true } }, priority: 3, opacity: 0.3 },
+      { match: { day: { weekend: true } }, priority: 4, border_color: '#111111' },
+      { match: { day: { weekday: true } }, priority: 5, border_width: 2 },
+      { match: { day: { day_of_week: 'Friday' } }, priority: 6, background: '#222222' },
+      { match: { day: { has_event: true } }, priority: 7, background: 'auto' },
+      { match: { day: { has_event: { title_contains: 'Soccer' } } }, priority: 8, border_color: '#333333' },
+      { match: { day: { no_event: true } }, priority: 9, background: '#444444' },
+      { match: { day: { no_event: { title_contains: 'Piano' } } }, priority: 10, border_width: 4 }
+    ]
+  });
+
+  const todayStyle = card.getDayStyleConfig(new Date(), [], true);
+  assert.equal(todayStyle.opacity, 0.1);
+
+  const pastStyle = card.getDayStyleConfig(new Date('2000-05-01T00:00:00Z'), [], false);
+  assert.equal(pastStyle.opacity, 0.2);
+  assert.equal(pastStyle.background, '#444444');
+
+  const futureStyle = card.getDayStyleConfig(new Date('2999-05-02T00:00:00Z'), [], false);
+  assert.equal(futureStyle.opacity, 0.3);
+
+  const weekendStyle = card.getDayStyleConfig(new Date('2026-05-02T00:00:00Z'), [], false);
+  assert.equal(weekendStyle.border_color, '#111111');
+
+  const fridayStyle = card.getDayStyleConfig(new Date('2026-05-01T00:00:00Z'), [event], false);
+  assert.equal(fridayStyle.background, '#335577');
+  assert.equal(fridayStyle.border_color, '#333333');
+  assert.equal(fridayStyle.border_width, '4px');
+});
+
+test('advanced style conflict behavior is per property with priority and earlier-rule tie breaks', () => {
+  const event = { entityId: 'calendar.school', color: '#123456', summary: 'Soccer Practice', start: { dateTime: '2026-05-01T10:00:00Z' }, end: { dateTime: '2026-05-01T11:00:00Z' } };
+  const card = makeCard({
+    entities: ['calendar.school'],
+    event_styles: [
+      { match: { title_contains: 'Soccer' }, priority: 1, style: { background_color: '#111111', event_font_color: '#aaaaaa' } },
+      { match: { title_contains: 'Soccer' }, priority: 3, style: { background_color: '#222222' } },
+      { match: { title_contains: 'Soccer' }, priority: 3, style: { background_color: '#333333' } },
+      { match: { title_contains: 'Soccer' }, priority: 2, style: { event_font_color: '#bbbbbb' } }
+    ],
+    day_styles: [
+      { match: { day: { has_event: true } }, priority: 1, background: '#444444', opacity: 0.2 },
+      { match: { day: { has_event: true } }, priority: 5, background: '#555555' },
+      { match: { day: { has_event: true } }, priority: 5, background: '#666666' },
+      { match: { day: { has_event: true } }, priority: 3, opacity: 0.8 }
+    ]
+  });
+
+  const eventStyle = card.getEventStyleOverrides(event);
+  assert.equal(eventStyle.background_color, '#222222');
+  assert.equal(eventStyle.event_font_color, '#bbbbbb');
+
+  const dayStyle = card.getDayStyleConfig(new Date('2026-05-01T00:00:00Z'), [event], false);
+  assert.equal(dayStyle.background, '#555555');
+  assert.equal(dayStyle.opacity, 0.8);
 });
