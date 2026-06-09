@@ -2200,7 +2200,8 @@ class SkylightCalendarCard extends HTMLElement {
       if (rule.title_match !== undefined && rule.title_match !== null && rule.title_match !== '') {
         eventMatch.title = rule.title_match;
       }
-      dayMatch[isNegatedCondition ? 'no_event' : 'has_event'] = Object.keys(eventMatch).length ? eventMatch : true;
+      if (!Object.keys(eventMatch).length) return null;
+      dayMatch[isNegatedCondition ? 'no_event' : 'has_event'] = eventMatch;
     } else if (condition === 'day_of_week') {
       const dayOfWeek = this.normalizeDayOfWeekRule(rule.day_of_week ?? rule.day ?? rule.days, localeOverride);
       if (!dayOfWeek.length) return null;
@@ -2869,9 +2870,8 @@ class SkylightCalendarCard extends HTMLElement {
       if (!matchedEvent && result.matchedEvent) matchedEvent = result.matchedEvent;
     }
 
-    if (Object.prototype.hasOwnProperty.call(match, 'any')) {
-      const anyConditions = Array.isArray(match.any) ? match.any : [];
-      if (!anyConditions.length) return { matches: true, matchedEvent };
+    const anyConditions = Array.isArray(match.any) ? match.any : [];
+    if (anyConditions.length) {
       let anyMatched = false;
       for (const condition of anyConditions) {
         const result = this.matchesAdvancedRule(condition, context);

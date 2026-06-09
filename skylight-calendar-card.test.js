@@ -3059,6 +3059,45 @@ test('advanced matching supports explicit logical event matchers and nested even
   assert.match(html, />D</);
 });
 
+
+test('advanced matching evaluates top-level not when any is empty by default', () => {
+  const card = makeCard({
+    entities: ['calendar.school'],
+    event_styles: [{ match: { not: { title_contains: 'private' } }, style: { background_color: '#112233' } }]
+  });
+
+  const publicEvent = { entityId: 'calendar.school', summary: 'Team Meeting', start: { dateTime: '2026-05-01T10:00:00Z' }, end: { dateTime: '2026-05-01T11:00:00Z' } };
+  const privateEvent = { entityId: 'calendar.school', summary: 'Private Appointment', start: { dateTime: '2026-05-01T12:00:00Z' }, end: { dateTime: '2026-05-01T13:00:00Z' } };
+
+  assert.equal(card.getEventStyleOverrides(publicEvent).background_color, '#112233');
+  assert.equal(card.getEventStyleOverrides(privateEvent).background_color, undefined);
+});
+
+test('legacy has_event day_styles without event criteria are ignored', () => {
+  const dayEvents = [{ entityId: 'calendar.school', color: '#335577', summary: 'Soccer Practice', start: { dateTime: '2026-05-01T10:00:00Z' }, end: { dateTime: '2026-05-01T11:00:00Z' } }];
+  const emptyDay = new Date('2026-05-02T00:00:00Z');
+  const eventDay = new Date('2026-05-01T00:00:00Z');
+  const legacyCard = makeCard({
+    entities: ['calendar.school'],
+    day_styles: [
+      { condition: 'has_event', background: '#111111' },
+      { condition: '!has_event', border_color: '#222222' }
+    ]
+  });
+  const advancedCard = makeCard({
+    entities: ['calendar.school'],
+    day_styles: [
+      { match: { day: { has_event: true } }, background: '#111111' },
+      { match: { day: { no_event: true } }, border_color: '#222222' }
+    ]
+  });
+
+  assert.equal(legacyCard.getDayStyleConfig(eventDay, dayEvents, false), null);
+  assert.equal(legacyCard.getDayStyleConfig(emptyDay, [], false), null);
+  assert.equal(advancedCard.getDayStyleConfig(eventDay, dayEvents, false).background, '#111111');
+  assert.equal(advancedCard.getDayStyleConfig(emptyDay, [], false).border_color, '#222222');
+});
+
 test('advanced day matching supports relative day fields day_of_week has_event and no_event', () => {
   const event = { entityId: 'calendar.school', color: '#335577', summary: 'Soccer Practice', start: { dateTime: '2026-05-01T10:00:00Z' }, end: { dateTime: '2026-05-01T11:00:00Z' } };
   const card = makeCard({
