@@ -1,0 +1,82 @@
+---
+title: "Combine Calendars: Deduplicate Shared Events"
+sidebarTitle: "Combine Calendars"
+description: "Use combine_calendars to merge duplicate events across multiple Home Assistant calendars, with bars, stripes, or dots styles to mark combined event chips."
+---
+
+A common problem in multi-calendar setups is that the same event appears more than once — for example, a family dinner added to both a shared household calendar and a personal calendar, or a team meeting that shows up in both a project calendar and an individual calendar. Without any deduplication, the card renders these as separate event chips stacked on the same day, which makes the view feel noisy and harder to read. Enabling `combine_calendars` tells the card to detect these duplicates and merge them into a single display event, with a configurable visual indicator that communicates the event spans more than one calendar source.
+
+## How Deduplication Works
+
+When `combine_calendars` is `true`, the card compares every event loaded from your calendar entities. Two events are considered duplicates if they share the same **title**, **start time**, and **end time**. When a match is found, the events are merged into one chip, and a small indicator is added to show that the event came from multiple sources.
+
+The merged event inherits the color of the first matching source calendar unless overridden by an `event_styles` rule.
+
+## Configuration
+
+<ParamField path="combine_calendars" default="false" type="boolean">
+  Set to `true` to enable event deduplication. When enabled, events with identical title, start time, and end time are merged into a single display event.
+</ParamField>
+
+<ParamField path="combine_style" default="bars" type="string">
+  The visual style used to indicate that a displayed event was combined from multiple calendar sources. Accepted values:
+
+  - **`bars`** — parallel colored bars along the side of the event chip, one per source calendar
+  - **`stripes`** — a diagonal stripe pattern on the event chip background
+  - **`dots`** — small colored dots displayed on the event chip, one per source calendar
+</ParamField>
+
+<ParamField path="combine_background" default="primary" type="string">
+  Controls the background color applied to combined events. Accepted values:
+
+  - **`primary`** — uses the color of the primary (first) source calendar
+  - **`neutral`** — uses a neutral gray that does not favor any single calendar
+  - A **hex color string** (e.g. `'#E8EAF6'`) — applies a fixed custom color to all combined events
+</ParamField>
+
+<ParamField path="combine_calendars_width" default="18" type="number">
+  The width in pixels of the combine indicator strip rendered on the event chip. Increase this value if you want the bars, stripes, or dots to be more prominent.
+</ParamField>
+
+## Example
+
+The following configuration loads three calendar entities and merges any events that appear in more than one of them, displaying a colored bar strip on combined events.
+
+```yaml
+type: custom:daylight-calendar-card
+entities:
+  - calendar.family
+  - calendar.personal
+  - calendar.work
+combine_calendars: true
+combine_style: bars
+combine_background: primary
+combine_calendars_width: 18
+```
+
+## Using All Three Combine Styles
+
+Choose the style that best fits your card's visual theme:
+
+```yaml
+# Bars — clear per-calendar color strips on the event side
+combine_style: bars
+
+# Stripes — subtle diagonal texture across the event background
+combine_style: stripes
+
+# Dots — compact colored dot indicators
+combine_style: dots
+```
+
+<Note>
+  Deduplication requires an **exact match** on title, start time, and end time. If the same real-world event is stored with slightly different times across calendars — for example, due to timezone conversion differences of even one minute — the events will **not** be merged and will appear as separate chips. If you notice duplicates that are not being merged, check whether the event times are truly identical in both calendar sources.
+</Note>
+
+<Tip>
+  `combine_calendars` pairs well with `virtual_calendars`. Group related calendar entities under a virtual calendar for a unified toggle in the header, and enable `combine_calendars` to ensure that shared events from those grouped entities only appear once on the card.
+</Tip>
+
+<Tip>
+  Need finer visual control than the built-in options provide? The card also accepts a YAML-only [`uix.style`](/advanced/uix) escape hatch for injecting raw CSS into its shadow DOM.
+</Tip>

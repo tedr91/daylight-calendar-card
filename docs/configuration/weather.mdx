@@ -1,0 +1,99 @@
+---
+title: "Weather & Time Display in the Daylight Calendar Card"
+sidebarTitle: "Weather"
+description: "Add weather forecasts and a live clock to your Daylight Calendar Card header using Home Assistant weather and time sensor entities."
+---
+
+The Daylight Calendar Card can pull current conditions and a daily forecast from any Home Assistant `weather.*` entity and display them alongside your events. Current conditions and today's temperature appear in the card header, and per-day forecast icons appear in Month day cells and in the Agenda view.
+
+## Weather Forecast
+
+<ParamField path="header_weather_sensor" type="string">
+  The entity ID of a Home Assistant `weather.*` entity. When set, the card:
+
+  - Reads **current conditions** (state and temperature) directly from the entity for the header summary.
+  - Subscribes to **daily forecasts** through Home Assistant's live forecast API and renders an MDI weather icon plus high/low temperatures for each day.
+
+  Examples: `weather.home`, `weather.openweathermap`, `weather.met_no`.
+</ParamField>
+
+### Requirements
+
+To display weather data you need:
+
+1. A weather integration installed and configured in Home Assistant — for example, [Met.no](https://www.home-assistant.io/integrations/met/), [OpenWeatherMap](https://www.home-assistant.io/integrations/openweathermap/), or [AccuWeather](https://www.home-assistant.io/integrations/accuweather/).
+2. The `weather.*` entity must support the **daily forecast** type. Home Assistant exposes this as the `FORECAST_DAILY` feature on the entity. Most modern HA weather integrations support daily forecasts out of the box, but a few (especially radar-only or current-conditions-only integrations) do not.
+
+### Example
+
+```yaml
+type: custom:daylight-calendar-card
+title: Family Calendar
+entities:
+  - calendar.family
+header_weather_sensor: weather.home
+```
+
+<Tip>
+  Popular weather integrations known to provide daily forecasts: Met.no (free, no sign-up), OpenWeatherMap, AccuWeather, Pirate Weather, and the built-in HA weather platform.
+</Tip>
+
+<Note>
+  Weather icons in the card are rendered using MDI (Material Design Icons), not emoji. They scale crisply at any display size and automatically respect your card's light or dark color scheme without any extra configuration.
+</Note>
+
+### Troubleshooting
+
+<Warning>
+  **Current conditions show but day-cell forecasts are empty.** This usually means the `weather.*` entity does not advertise daily-forecast support. Verify by calling the `weather.get_forecasts` service in Home Assistant Developer Tools with `type: daily`. If the response is empty or errors out, switch to a weather integration that supports daily forecasts (Met.no is a good free option).
+</Warning>
+
+<Warning>
+  **Forecasts stop updating after a while.** The card maintains a live subscription to the weather entity's forecast stream. If your weather integration is rate-limited or disconnected, forecasts may go stale. Reload the dashboard tab to re-establish the subscription, and check the integration's status page in Home Assistant.
+</Warning>
+
+## Live Time Display
+
+In addition to weather, you can display a real-time clock in the card header by pointing the card at a Home Assistant time sensor.
+
+<ParamField path="header_time_sensor" type="string">
+  The entity ID of a Home Assistant sensor that provides the current time as its state. The most common choice is `sensor.time`, which is provided by the [Time & Date](https://www.home-assistant.io/integrations/time_date/) integration. When set, the current time is shown in the card header and updates automatically each minute.
+</ParamField>
+
+### Setting Up `sensor.time`
+
+If you have not already added the Time & Date integration, enable `sensor.time` by adding the following to your `configuration.yaml`:
+
+```yaml
+sensor:
+  - platform: time_date
+    display_options:
+      - time
+```
+
+Then restart Home Assistant and use the sensor in the card:
+
+```yaml
+type: custom:daylight-calendar-card
+title: Family Calendar
+entities:
+  - calendar.family
+header_time_sensor: sensor.time
+header_weather_sensor: weather.home
+```
+
+## Combined Example
+
+The configuration below shows a card that displays both a live clock and a daily weather forecast in the header:
+
+```yaml
+type: custom:daylight-calendar-card
+title: Family Calendar
+entities:
+  - calendar.family
+  - calendar.work
+header_weather_sensor: weather.home
+header_time_sensor: sensor.time
+default_view: month
+color_scheme: auto
+```

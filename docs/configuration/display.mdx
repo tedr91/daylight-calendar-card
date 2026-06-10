@@ -1,0 +1,200 @@
+---
+title: "Display & Header Options for Daylight Calendar Card"
+sidebarTitle: "Display Options"
+description: "Control header visibility, navigation, calendar badge display, and event formatting options for the Daylight Calendar Card in Home Assistant."
+---
+
+The Daylight Calendar Card gives you fine-grained control over which interface elements are visible and how individual events are presented. Whether you want a completely frameless calendar embedded in a dashboard or a fully interactive card with navigation controls and calendar toggles, the options below let you build exactly what you need.
+
+## Header Options
+
+The header sits at the top of the card and contains the title, navigation arrows, view selector, add-event button, and the dark-mode toggle. You can hide any combination of these controls independently.
+
+<ParamField path="hide_header" default="false" type="boolean">
+  Hide the entire card header, including the title and all controls. Useful when you want only the calendar grid itself to appear.
+</ParamField>
+
+<ParamField path="hide_year" default="false" type="boolean">
+  Remove the year from the date shown in the header. Helpful when space is tight and the year is implied.
+</ParamField>
+
+<ParamField path="hide_navigation_buttons" default="false" type="boolean">
+  Hide the previous and next navigation arrows so the card stays fixed on the current period.
+</ParamField>
+
+<ParamField path="hide_view_selector" default="false" type="boolean">
+  Hide the view-selector dropdown (Month / Week / Schedule / Agenda) so the card stays locked to its `default_view`.
+</ParamField>
+
+<ParamField path="hide_add_event_button" default="false" type="boolean">
+  Hide the **Add Event** button from the header.
+</ParamField>
+
+<ParamField path="hide_dark_mode_toggle" default="false" type="boolean">
+  Hide the light/dark mode toggle button.
+</ParamField>
+
+<ParamField path="hide_controls" default="false" type="boolean">
+  Hide all controls at once — equivalent to setting `hide_navigation_buttons`, `hide_view_selector`, and `hide_add_event_button` to `true` simultaneously.
+</ParamField>
+
+<ParamField path="compact_header" default="false" type="boolean">
+  Collapse the header into a single row by placing the title and controls side by side. This saves vertical space on smaller cards.
+</ParamField>
+
+<ParamField path="show_dashboard_nav_button" default="false" type="boolean">
+  Show a button in the header that navigates to another Home Assistant dashboard. You must also set `header_dashboard_path` for the button to appear.
+</ParamField>
+
+<ParamField path="header_dashboard_path" type="string">
+  The path of the dashboard to open when the navigation button is clicked. For example, `/lovelace/calendar` or `/lovelace-custom/overview`. Requires `show_dashboard_nav_button: true`.
+</ParamField>
+
+## Calendar List Options
+
+The calendar list lets users toggle individual calendars on or off from inside the card. These options control whether the list is shown and how each calendar is labelled.
+
+<ParamField path="hide_calendars" default="false" type="boolean">
+  Hide the calendar visibility toggle list entirely.
+</ParamField>
+
+<ParamField path="hide_calendar_names" default="false" type="boolean">
+  Hide the text name next to each calendar's colored dot in the calendar list, showing only the color indicators.
+</ParamField>
+
+<ParamField path="default_hidden_calendars" type="list">
+  A list of calendar entity IDs that should be hidden when the card loads for the first time. The user can still reveal them using the calendar toggle list. Once the user changes their selection it is saved in browser storage.
+
+  ```yaml
+  default_hidden_calendars:
+    - calendar.work
+    - calendar.holidays_in_united_states
+  ```
+</ParamField>
+
+<ParamField path="calendar_names" type="map">
+  Override the display name of any calendar in the card UI. The key is the entity ID and the value is the name you want shown.
+
+  ```yaml
+  calendar_names:
+    calendar.family: "Family"
+    calendar.work: "Work"
+  ```
+</ParamField>
+
+<ParamField path="calendar_badge_icons" type="map">
+  Assign an MDI icon to a calendar. The icon appears as a badge next to the calendar's colored dot in the calendar list and, optionally, on each event from that calendar.
+
+  ```yaml
+  calendar_badge_icons:
+    calendar.family: mdi:home-heart
+    calendar.work: mdi:briefcase
+  ```
+</ParamField>
+
+<ParamField path="hide_badge_calendars" type="list">
+  A list of calendar entity IDs to exclude from the calendar badge row that appears in the card header. Calendars listed here will still appear in the main calendar grid and in the calendar toggle list — they are only hidden from the compact badge indicator strip at the top of the card.
+
+  ```yaml
+  hide_badge_calendars:
+    - calendar.holidays_in_united_states
+    - calendar.boss_calendar
+  ```
+</ParamField>
+
+## Event Display Options
+
+<ParamField path="event_font_size" default="11" type="number">
+  The font size (in pixels) of the event title text.
+</ParamField>
+
+<ParamField path="event_time_font_size" default="9" type="number">
+  The font size (in pixels) of the event start/end time text.
+</ParamField>
+
+<ParamField path="event_location_font_size" default="9" type="number">
+  The font size (in pixels) of the event location text.
+</ParamField>
+
+<ParamField path="event_calendar_friendly_name" default="false" type="boolean">
+  Show the calendar's friendly name beneath the event title in event detail modals.
+</ParamField>
+
+<ParamField path="event_title_prefix" default="none" type="string">
+  Prepend a prefix to every event title in the calendar grid. Options:
+
+  - `none` — no prefix
+  - `badge_icon` — prepend the calendar's MDI badge icon (requires `calendar_badge_icons`)
+  - `friendly_name` — prepend the calendar's display name
+</ParamField>
+
+<ParamField path="hide_event_calendar_bubble" default="false" type="boolean">
+  Hide the small colored dot (calendar indicator) that appears on each event chip in the grid.
+</ParamField>
+
+<ParamField path="hide_times_for_calendars" type="list">
+  A list of calendar entity IDs for which event start and end times should be hidden. Applies to Month, Week Compact, Schedule, and Agenda views. Useful for all-day or informational calendars where times add clutter.
+
+  ```yaml
+  hide_times_for_calendars:
+    - calendar.holidays_in_united_states
+  ```
+</ParamField>
+
+<ParamField path="shorten_event_times" default="false" type="boolean">
+  Display times in a compact format — for example, `10 AM` instead of `10:00 AM`. Applies to Month, Week Compact, Schedule, and Agenda views.
+</ParamField>
+
+<ParamField path="show_event_location" default="false" type="boolean">
+  Show the event's location text below the event title. Applies to **Week Compact**, **Schedule**, and **Agenda** views. Also applies to **Month** only when `show_all_details_month` is enabled.
+</ParamField>
+
+<ParamField path="use_short_location" default="false" type="boolean">
+  When `show_event_location` is also enabled, truncate long location strings to a shorter form so they don't push event blocks taller. Applies to **Week Compact**, **Schedule**, and **Agenda** views. Also applies to **Month** only when `show_all_details_month` is enabled.
+</ParamField>
+
+<ParamField path="past_event_mode" default="none" type="string">
+  Controls how events that have already ended are displayed:
+
+  - `none` — past events appear exactly like future events
+  - `hide` — past events are removed from view entirely
+  - `muted` — past events are shown with reduced opacity to de-emphasise them
+</ParamField>
+
+<ParamField path="disable_swipe_controls" default="false" type="boolean">
+  Disable touch swipe gestures for navigating between weeks and months. Useful on dashboards where the card is embedded inside another scrollable container.
+</ParamField>
+
+## Example
+
+```yaml
+type: custom:daylight-calendar-card
+title: Family Calendar
+entities:
+  - calendar.family
+  - calendar.work
+  - calendar.holidays_in_united_states
+compact_header: true
+hide_dark_mode_toggle: true
+hide_add_event_button: false
+show_dashboard_nav_button: true
+header_dashboard_path: /lovelace/home
+default_hidden_calendars:
+  - calendar.holidays_in_united_states
+calendar_names:
+  calendar.family: "Family"
+  calendar.work: "Work"
+calendar_badge_icons:
+  calendar.family: mdi:home-heart
+  calendar.work: mdi:briefcase
+event_font_size: 12
+event_time_font_size: 10
+shorten_event_times: true
+show_event_location: true
+use_short_location: true
+past_event_mode: muted
+hide_times_for_calendars:
+  - calendar.holidays_in_united_states
+hide_badge_calendars:
+  - calendar.holidays_in_united_states
+```
