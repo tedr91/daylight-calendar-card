@@ -77,7 +77,7 @@ The Daylight Calendar Card is designed to work out of the box with any Home Assi
   <Accordion title="Cannot edit or delete an event">
     There are several reasons an event might not be editable or deletable:
 
-    **Google Calendar events** Editing events is not supported through the Home Assistant Google Calendar integration. Google Calendar edits are simulated via create-then-delete, which changes the event's UID. To truly an event, use the Google Calendar app or website directly. Deletion does work through HA.
+    **Google Calendar events** Editing events is not supported through the Home Assistant Google Calendar integration. Google Calendar edits are simulated via create-then-delete, which changes the event's UID. To truly edit an event, use the Google Calendar app or website directly. Deletion does work through HA.
 
     **Event is missing a UID** Some calendar integrations do not attach a UID to every event. Without a UID, the card cannot uniquely identify the event to send an edit or delete request. The only fix is to delete the event and recreate it through a source that generates UIDs.
 
