@@ -8,14 +8,14 @@ A common problem in multi-calendar setups is that the same event appears more th
 
 ## How Deduplication Works
 
-When `combine_calendars` is `true`, the card compares every event loaded from your calendar entities. Two events are considered duplicates if they share the same **title**, **start time**, and **end time**. When a match is found, the events are merged into one chip, and a small indicator is added to show that the event came from multiple sources.
+When `combine_calendars` is `true`, the card compares every event loaded from your calendar entities. Two events are considered duplicates if they share the same normalized **title**, **start time**, **end time**, and **location**. When a match is found, the events are merged into one chip, and a small indicator is added to show that the event came from multiple sources.
 
 The merged event inherits the color of the first matching source calendar unless overridden by an `event_styles` rule.
 
 ## Configuration
 
 <ParamField path="combine_calendars" default="false" type="boolean">
-  Set to `true` to enable event deduplication. When enabled, events with identical title, start time, and end time are merged into a single display event.
+  Set to `true` to enable event deduplication. When enabled, events with identical title, start time, end time, and location are merged into a single display event.
 </ParamField>
 
 <ParamField path="combine_style" default="bars" type="string">
@@ -70,7 +70,7 @@ combine_style: dots
 ```
 
 <Note>
-  Deduplication requires an **exact match** on title, start time, and end time. If the same real-world event is stored with slightly different times across calendars — for example, due to timezone conversion differences of even one minute — the events will **not** be merged and will appear as separate chips. If you notice duplicates that are not being merged, check whether the event times are truly identical in both calendar sources.
+  Deduplication requires an **exact match** on title, start time, end time, and location. If the same real-world event is stored with slightly different times across calendars — for example, due to timezone conversion differences of even one minute — the events will **not** be merged and will appear as separate chips. If you notice duplicates that are not being merged, check whether the title, event times, and location are truly identical in both calendar sources.
 </Note>
 
 <Tip>

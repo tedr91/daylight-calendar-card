@@ -63,13 +63,27 @@ The calendar list lets users toggle individual calendars on or off from inside t
 </ParamField>
 
 <ParamField path="default_hidden_calendars" type="list">
-  A list of calendar entity IDs that should be hidden when the card loads for the first time. The user can still reveal them using the calendar toggle list. Once the user changes their selection it is saved in browser storage.
+  A list of calendar entity IDs that should be hidden when the card loads for the first time. The user can still reveal them using the calendar toggle list. Once the user changes their selection it is saved in browser storage and overrides this initial default for that browser.
 
   ```yaml
   default_hidden_calendars:
     - calendar.work
     - calendar.holidays_in_united_states
   ```
+</ParamField>
+
+<ParamField path="default_calendar_visibility" type="map">
+  A map of calendar entity IDs to initial visibility states. Use `show`, `shown`, `visible`, `on`, or `true` to force a calendar visible; use `hide`, `hidden`, `off`, or `false` to hide it initially. This is an alternative to `default_hidden_calendars` when you prefer one map of explicit states.
+
+  ```yaml
+  default_calendar_visibility:
+    calendar.family: show
+    calendar.work: hide
+  ```
+</ParamField>
+
+<ParamField path="calendar_visibility" type="map">
+  Legacy alias for `default_calendar_visibility`. Use `default_calendar_visibility` for new configurations.
 </ParamField>
 
 <ParamField path="calendar_names" type="map">
@@ -159,6 +173,10 @@ The calendar list lets users toggle individual calendars on or off from inside t
   - `none` — past events appear exactly like future events
   - `hide` — past events are removed from view entirely
   - `muted` — past events are shown with reduced opacity to de-emphasise them
+</ParamField>
+
+<ParamField path="hide_the_past" default="false" type="boolean">
+  Legacy alias for `past_event_mode: hide`. Use `past_event_mode` for new configurations because it also supports the `muted` option.
 </ParamField>
 
 <ParamField path="disable_swipe_controls" default="false" type="boolean">

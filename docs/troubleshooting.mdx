@@ -145,14 +145,14 @@ The Daylight Calendar Card is designed to work out of the box with any Home Assi
   <Accordion title="Events are duplicated">
     If you see the same event appearing twice (or more), you likely have multiple calendar entities that both contain that event — for example, a personal Google Calendar and a shared family calendar that both include the same entry.
 
-    Enable calendar combining to automatically deduplicate events that share the same UID:
+    Enable calendar combining to automatically deduplicate events that share the same normalized title, start time, end time, and location:
 
     ```yaml
     combine_calendars: true
     ```
 
     <Note>
-      Deduplication relies on event UIDs. If duplicates persist after enabling `combine_calendars`, the events may have different UIDs across calendars, in which case the card treats them as distinct events.
+      Deduplication does not rely on event UIDs. If duplicates persist after enabling `combine_calendars`, compare the event title, start time, end time, and location across calendars. Any difference in those fields makes the card treat the entries as distinct events.
     </Note>
   </Accordion>
 
