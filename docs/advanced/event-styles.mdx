@@ -4,7 +4,7 @@ sidebarTitle: "Event Styles"
 description: "Use event_styles rules to apply colors, icons, opacity, and hide overrides to Home Assistant calendar events matched by title, calendar, location, or date."
 ---
 
-The `event_styles` configuration lets you define a list of rules that change how individual events look on your calendar. Each rule specifies which events to target through a `match` object and how to style them through a `style` object. When multiple rules match the same event, the rule with the highest `priority` value wins. This makes it easy to build layered styling — for example, dimming all past events while still highlighting specific recurring ones at a higher priority.
+The `event_styles` configuration lets you define a list of rules that change how individual events look on your calendar. Each rule specifies which events to target through a `match` object and how to style them through a `style` object. When multiple rules match the same event, conflicts are resolved per style property: the matching rule with the highest `priority` for that property wins. This makes it easy to build layered styling — for example, dimming all past events while still highlighting specific recurring ones at a higher priority.
 
 ## Rule Structure
 
